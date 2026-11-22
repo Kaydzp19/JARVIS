@@ -31,6 +31,9 @@ def trouver(identifiant, racine=None):
     if ":" in texte:
         projet, num = texte.rsplit(":", 1)
         projet, pid = projet.strip(), int(num)
+        if projet not in cc.lister_projets(racine):
+            raise KeyError(f"Le projet « {projet} » n'existe pas. Projets : "
+                           + (", ".join(cc.lister_projets(racine)) or "aucun") + ".")
         cc.lire_proposition(projet, pid, racine)  # KeyError si absente
         return projet, pid
     pid = int(texte)
@@ -56,6 +59,14 @@ def main(argv=None, sortie=None):
     if args.dossier:
         os.environ["DOSSIER_DONNEES"] = str(Path(args.dossier).expanduser().resolve())
 
+    from noyau import reglages
+    dossier = reglages.dossier_donnees()
+    if not cc.lister_projets():
+        print(f"Aucun projet dans {dossier}.", file=sortie)
+        print("Pour la démo, lance d'abord : python3 exemples/demo.py "
+              "(depuis le dossier JARVIS), puis réessaie.", file=sortie)
+        return 1
+
     if not args.id:
         liste = en_attente()
         if not liste:
@@ -79,8 +90,8 @@ def main(argv=None, sortie=None):
             cree = cc.valider_proposition(projet, pid)
             print(f"Proposition {projet}:{pid} validée et écrite (élément n°{cree}).", file=sortie)
         return 0
-    except (KeyError, ValueError) as e:
-        print(f"Impossible : {e}", file=sortie)
+    except (KeyError, ValueError, FileNotFoundError) as e:
+        print(f"Impossible : {str(e).strip(chr(34))}", file=sortie)
         return 1
 
 

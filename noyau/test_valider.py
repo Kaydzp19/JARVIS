@@ -68,3 +68,16 @@ class TestValider(TestTemporaire):
     def test_inconnue(self):
         code, sortie = self.lancer("Projet A:99")
         self.assertEqual(code, 1)
+
+    def test_projet_inconnu_message_clair(self):
+        code, sortie = self.lancer("Projet Z:1")
+        self.assertEqual(code, 1)
+        self.assertIn("n'existe pas", sortie)
+        self.assertNotIn("Traceback", sortie)
+
+    def test_dossier_sans_projet(self):
+        vide = self.racine / "vide"
+        code, sortie = self.lancer("--dossier", str(vide))
+        self.assertEqual(code, 1)
+        self.assertIn("Aucun projet", sortie)
+        self.assertIn("exemples/demo.py", sortie)
