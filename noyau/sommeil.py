@@ -372,7 +372,8 @@ def dernier_resume(projet, racine=None):
 
 from noyau import reve  # noqa: E402  (les phases du rêve sont dans noyau/reve.py)
 
-PHASES = [("tri", phase_tri), ("analyse", phase_analyse), ("rêve", reve.phase_reve)]
+PHASES = [("tri", phase_tri), ("analyse", phase_analyse), ("rêve", reve.phase_reve),
+          ("réveil", reve.phase_reveil)]
 
 
 # ------------------------------------------------------------------

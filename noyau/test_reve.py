@@ -66,3 +66,50 @@ class TestPhaseReve(BaseReve):
                                fournisseurs={"demo": self.espion})
         self.assertEqual(bilan["projets"]["B"]["idees_revees"], 0)
         self.assertEqual(self.demandes("rever"), [])
+
+
+class TestPhaseReveil(BaseReve):
+
+    def test_une_seule_idee_gardee_avec_ses_sources(self):
+        bilan = self.dormir()
+        rid = bilan["projets"]["A"]["reve"]
+        self.assertIsNotNone(rid)
+        tous = reve.lister("A", racine=self.racine)
+        self.assertEqual(len(tous), 1)
+        r = tous[0]
+        self.assertEqual(r["id"], rid)
+        self.assertEqual(r["statut"], "nouvelle")
+        self.assertGreaterEqual(len(r["sources"]), 2)
+        self.assertEqual(len(r["sources_titres"]), len(r["sources"]))
+        self.assertTrue(r["raison"])
+        self.assertEqual(r["details"]["idees_evaluees"], 5)
+        demande, temperature = self.demandes("evaluer")[0]
+        self.assertEqual(temperature, 0.2)  # IA rigoureuse
+        self.assertEqual(len(demande["idees"]), 5)
+
+    def test_une_seule_idee_par_nuit(self):
+        self.dormir()
+        bilan = self.dormir()  # même nuit, relancé à la main
+        self.assertIsNone(bilan["projets"]["A"]["reve"])
+        self.assertEqual(len(reve.lister("A", racine=self.racine)), 1)
+        self.assertEqual(len(self.demandes("rever")), 1)  # pas de dépense inutile
+        self.dormir(1)
+        self.assertEqual(len(reve.lister("A", racine=self.racine)), 2)
+
+    def test_contraintes_lues_dans_les_reglages(self):
+        (self.racine / "reglages.local").write_text(
+            "CONTRAINTE_BUDGET_EUR=0\nCONTRAINTE_NIVEAU=débutant\n"
+            "CONTRAINTE_OBJECTIFS=trouver des clients, fixer un prix\n")
+        self.dormir()
+        demande, _ = self.demandes("evaluer")[0]
+        self.assertEqual(demande["contraintes"]["objectifs"], "trouver des clients, fixer un prix")
+        r = reve.lister("A", racine=self.racine)[0]
+        # Budget 0 € : une idée payante n'est jamais faisable, donc jamais choisie.
+        self.assertEqual(r["details"]["cout_estime_eur"], 0)
+        self.assertNotEqual(r["details"]["effort"], "fort")
+
+    def test_aucune_idee_si_toutes_mauvaises(self):
+        bilan = sommeil.dormir(JOUR_1, projet="A", racine=self.racine,
+                               fournisseurs={"demo": self.espion}, reglages={"score_min": 10.0})
+        self.assertIsNone(bilan["projets"]["A"]["reve"])
+        self.assertEqual(reve.lister("A", racine=self.racine), [])

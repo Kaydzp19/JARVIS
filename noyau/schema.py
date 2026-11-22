@@ -23,6 +23,19 @@ CREATE TABLE IF NOT EXISTS usages_synapses (
     jour        TEXT NOT NULL,
     UNIQUE (synapse_id, jour)
 );
+CREATE TABLE IF NOT EXISTS reves (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    date           TEXT NOT NULL,
+    idee           TEXT NOT NULL,
+    sources        TEXT NOT NULL,
+    sources_titres TEXT NOT NULL,
+    score          REAL NOT NULL,
+    details        TEXT NOT NULL,
+    statut         TEXT NOT NULL DEFAULT 'nouvelle'
+                   CHECK (statut IN ('nouvelle', 'gardée', 'rejetée', 'creusée')),
+    raison         TEXT,
+    traite_le      TEXT
+);
 CREATE TABLE IF NOT EXISTS analyses (
     id             INTEGER PRIMARY KEY AUTOINCREMENT,
     date           TEXT NOT NULL,

@@ -119,7 +119,40 @@ def rever(demande, temperature):
     return {"idees": idees}
 
 
-TACHES = {"synthetiser": synthetiser, "trier": trier, "resumer": resumer, "rever": rever}
+def evaluer(demande, temperature):
+    c = demande.get("contraintes", {})
+    objectifs = set(mots_cles(c.get("objectifs", "")))
+    budget = float(c.get("budget_eur") or 0)
+    debutant = "debut" in (c.get("niveau") or "").lower().replace("é", "e")
+    deja = (demande.get("titres_existants", []) + demande.get("idees_deja_vues", []))
+    rejetees = [r.get("idee", "") for r in demande.get("idees_rejetees", [])]
+    evaluations = []
+    for idee in demande.get("idees", []):
+        texte = idee["idee"]
+        proche = max([similarite(texte, x) for x in deja] or [0.0])
+        proche_rejet = max([similarite(texte, x) for x in rejetees] or [0.0])
+        nouveaute = 10 * (1 - proche) * (0.3 if proche_rejet >= 0.4 else 1)
+        mots = set(mots_cles(texte + " " + " ".join(idee.get("sources_titres", []))))
+        utilite = 3 + 7 * len(mots & objectifs) / len(objectifs) if objectifs else 5.0
+        faisabilite = {"faible": 9, "moyen": 6, "fort": 3}.get(idee.get("effort"), 5)
+        if debutant and idee.get("effort") == "fort":
+            faisabilite = 2
+        if float(idee.get("cout_estime_eur") or 0) > budget:
+            faisabilite = 1
+        raisons = []
+        raisons.append("très nouvelle" if nouveaute >= 7 else "proche de l'existant")
+        raisons.append(f"sert {len(mots & objectifs)} objectif(s)" if objectifs
+                       else "objectifs non renseignés")
+        raisons.append(f"effort {idee.get('effort')}, coût {idee.get('cout_estime_eur', 0)} € "
+                       f"pour un budget de {budget:g} €")
+        evaluations.append({"index": idee["index"], "nouveaute": round(nouveaute, 1),
+                            "utilite": round(min(10, utilite), 1),
+                            "faisabilite": faisabilite, "justification": " ; ".join(raisons)})
+    return {"evaluations": evaluations}
+
+
+TACHES = {"synthetiser": synthetiser, "trier": trier, "resumer": resumer, "rever": rever,
+          "evaluer": evaluer}
 
 
 def repondre(tache, texte, temperature=None):

@@ -12,10 +12,11 @@ Le rêve ne fait que PROPOSER : il n'écrit jamais dans les notes.
 Les notes sensibles n'y participent jamais.
 """
 
+import json
 import random
 from itertools import combinations
 
-from noyau import synapses
+from noyau import projets, reglages, synapses
 
 REGLAGES_REVE = {
     "combinaisons": 6,          # nombre de paires/triplets tirés au hasard
@@ -62,12 +63,70 @@ def tirer_combinaisons(notes, poids, nombre, poids_max, graine):
     return choisies
 
 
+# ------------------------------------------------------------------
+# Table « reves » (dans projet.db)
+# ------------------------------------------------------------------
+
+def _ligne(r):
+    d = dict(r)
+    for cle in ("sources", "sources_titres", "details"):
+        d[cle] = json.loads(d[cle])
+    return d
+
+
+def lister(projet, statut=None, racine=None):
+    conn = projets._connexion(projet, racine)
+    try:
+        if statut:
+            lignes = conn.execute("SELECT * FROM reves WHERE statut = ? ORDER BY id",
+                                  (statut,)).fetchall()
+        else:
+            lignes = conn.execute("SELECT * FROM reves ORDER BY id").fetchall()
+    finally:
+        conn.close()
+    return [_ligne(r) for r in lignes]
+
+
+def deja_reve(projet, date, racine=None):
+    """Une seule idée par projet et par nuit."""
+    return any(r["date"] == date.isoformat() for r in lister(projet, racine=racine))
+
+
+def _enregistrer(ctx, idee, score, details, raison):
+    conn = projets._connexion(ctx.projet, ctx.racine)
+    try:
+        with conn:
+            cur = conn.execute(
+                "INSERT INTO reves (date, idee, sources, sources_titres, score, details, "
+                "statut, raison) VALUES (?, ?, ?, ?, ?, ?, 'nouvelle', ?)",
+                (ctx.date.isoformat(), idee["idee"], json.dumps(idee["sources"]),
+                 json.dumps(idee["sources_titres"], ensure_ascii=False), score,
+                 json.dumps(details, ensure_ascii=False), raison))
+            return cur.lastrowid
+    finally:
+        conn.close()
+
+
+def contraintes():
+    """Tes contraintes, lues dans reglages.local (budget, niveau, objectifs)."""
+    return {"budget_eur": reglages.lire_nombre("CONTRAINTE_BUDGET_EUR", 0.0),
+            "niveau": reglages.lire("CONTRAINTE_NIVEAU"),
+            "objectifs": reglages.lire("CONTRAINTE_OBJECTIFS")}
+
+
+# ------------------------------------------------------------------
+# Phase rêve
+# ------------------------------------------------------------------
+
 def phase_reve(ctx, rejets=None):
     """
     Remplit ctx.idees avec les idées candidates de la nuit.
     rejets : idées déjà rejetées par Kayd, rappelées pour ne pas les répéter.
     """
     ctx.idees, ctx.combinaisons = [], []
+    if deja_reve(ctx.projet, ctx.date, ctx.racine):
+        ctx.journal("sommeil · rêve", "déjà rêvé cette nuit : une seule idée par nuit")
+        return {"idees_revees": 0}
     notes = ctx.notes_partageables()
     if len(notes) < 2:
         ctx.journal("sommeil · rêve", "pas assez de notes partageables pour rêver "
@@ -115,3 +174,59 @@ def phase_reve(ctx, rejets=None):
                 f"{len(combos)} combinaison(s) de notes éloignées, {len(idees)} idée(s) imaginée(s) "
                 f"par l'IA créative ({reponse['fournisseur']})")
     return {"idees_revees": len(idees)}
+
+
+# ------------------------------------------------------------------
+# Phase réveil
+# ------------------------------------------------------------------
+
+def phase_reveil(ctx, rejets=None):
+    """Une IA rigoureuse note les idées ; on ne garde que la meilleure (ou aucune)."""
+    idees = getattr(ctx, "idees", [])
+    if not idees:
+        ctx.journal("sommeil · réveil", "aucune idée à évaluer cette nuit")
+        return {"reve": None}
+    anciens = lister(ctx.projet, racine=ctx.racine)
+    demande = {
+        "consigne": ("Tu es un évaluateur rigoureux et exigeant. Note chaque idée de 0 à 10 sur : "
+                     "nouveauté (différente des notes existantes et des idées déjà vues), utilité "
+                     "(sert les objectifs), faisabilité (compatible avec le budget et le niveau). "
+                     "Sois sévère et justifie en une phrase. Réponds en JSON : "
+                     '{"evaluations": [{"index": 0, "nouveaute": 0, "utilite": 0, '
+                     '"faisabilite": 0, "justification": "..."}]}'),
+        "contraintes": contraintes(),
+        "idees": [dict(idee, index=i) for i, idee in enumerate(idees)],
+        "titres_existants": [n["titre"] for n in ctx.notes_partageables()],
+        "idees_deja_vues": [a["idee"] for a in anciens],
+        "idees_rejetees": rejets or [],
+    }
+    reponse = ctx.nuit.ia("evaluer", demande, "difficile", sensible=False,
+                          temperature=_reglage(ctx, "temperature_reveil"))
+    notees = []
+    for ev in (reponse["donnees"] or {}).get("evaluations", []):
+        try:
+            i = int(ev["index"])
+            n, u, f = (max(0.0, min(10.0, float(ev[k])))
+                       for k in ("nouveaute", "utilite", "faisabilite"))
+        except (KeyError, TypeError, ValueError):
+            continue
+        if 0 <= i < len(idees):
+            notees.append((round((n + u + f) / 3, 1), i,
+                           {"nouveaute": n, "utilite": u, "faisabilite": f},
+                           str(ev.get("justification") or "")))
+    if not notees:
+        ctx.journal("sommeil · réveil", "évaluation illisible : aucune idée gardée")
+        return {"reve": None}
+    score, i, details, justification = max(notees, key=lambda t: (t[0], -t[1]))
+    if score < _reglage(ctx, "score_min"):
+        ctx.journal("sommeil · réveil",
+                    f"aucune idée assez bonne (meilleur score {score}/10, minimum "
+                    f"{_reglage(ctx, 'score_min')})")
+        return {"reve": None}
+    details = dict(details, effort=idees[i]["effort"], cout_estime_eur=idees[i]["cout_estime_eur"],
+                   idees_evaluees=len(notees), ia=reponse["fournisseur"])
+    rid = _enregistrer(ctx, idees[i], score, details, justification)
+    ctx.journal("sommeil · réveil",
+                f"idée n°{rid} gardée sur {len(notees)} (score {score}/10) : {idees[i]['idee']} "
+                f"— sources : {', '.join(idees[i]['sources_titres'])} — {justification}")
+    return {"reve": rid}
