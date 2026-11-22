@@ -7,8 +7,8 @@ Exemples (depuis le dossier du dépôt) :
     python3 jarvis.py cockpit      ouvre le cockpit web (cerveau 3D, tâches, propositions)
     python3 jarvis.py maintenant   affiche ce qu'il faut faire maintenant
     python3 jarvis.py tour         un tour de l'orchestrateur (observer, décider, agir, mesurer)
-    python3 jarvis.py dormir       le sommeil et le rêve (--projet NOM pour un seul projet)
-    python3 jarvis.py installer-sommeil   lance le sommeil chaque nuit (Mac, launchd)
+    python3 jarvis.py dormir [projet]     le sommeil et le rêve (un projet ou tous, 1 fois / 24 h)
+    python3 jarvis.py installer-sommeil   lance le rêve à chaque réveil du Mac (launchd)
     python3 jarvis.py reve         liste les idées rêvées (nouvelles)
     python3 jarvis.py reve garder Demo-A:1 "raison"    garde une idée (ou : rejeter)
     python3 jarvis.py propositions liste les propositions en attente
@@ -79,7 +79,10 @@ def cmd_tour(args):
 
 def cmd_dormir(args):
     from noyau import sommeil
-    _afficher(sommeil.dormir(args.date, projet=args.projet, si_pas_fait=args.si_pas_fait))
+    bilan = sommeil.dormir(args.date, projet=args.projet)
+    if args.silencieux and not bilan["projets"]:
+        return  # rien à faire (règle des 24 h) : on n'encombre pas le journal du Mac
+    _afficher(bilan)
 
 
 def cmd_installer_sommeil(args):
@@ -93,14 +96,15 @@ def cmd_installer_sommeil(args):
     donnees.mkdir(parents=True, exist_ok=True)
     cible = Path.home() / "Library" / "LaunchAgents" / f"{sommeil.ETIQUETTE}.plist"
     cible.parent.mkdir(parents=True, exist_ok=True)
-    cible.write_text(sommeil.plist_launchd(RACINE_DEPOT, donnees, heure=args.heure,
-                                           minute=args.minute), encoding="utf-8")
+    cible.write_text(sommeil.plist_launchd(RACINE_DEPOT, donnees,
+                                           intervalle_minutes=args.intervalle),
+                     encoding="utf-8")
     subprocess.run(["launchctl", "unload", str(cible)], capture_output=True)
     r = subprocess.run(["launchctl", "load", "-w", str(cible)], capture_output=True, text=True)
     if r.returncode == 0:
-        print(f"Sommeil installé : chaque nuit à {args.heure}h{args.minute:02d}. "
-              "Si le Mac dormait, il se lance au réveil ; s'il était éteint, "
-              f"à l'ouverture de session. Journal : {donnees / 'sommeil.log'}")
+        print("Rêve installé : « jarvis dormir » se lance au réveil du Mac et à "
+              "l'ouverture de session, au plus une fois par 24 h et par projet. "
+              f"Journal : {donnees / 'sommeil.log'}")
     else:
         print("Échec de l'installation :", r.stderr.strip())
 
@@ -187,14 +191,14 @@ def main(argv=None):
     sous.add_parser("maintenant", help="la prochaine action").set_defaults(f=cmd_maintenant)
     sous.add_parser("tour", help="un tour de l'orchestrateur").set_defaults(f=cmd_tour)
     s = sous.add_parser("dormir", help="le sommeil et le rêve (un projet ou tous)")
-    s.add_argument("--projet", help="un seul projet (par défaut : tous)")
-    s.add_argument("--date", help="date simulée AAAA-MM-JJ (par défaut aujourd'hui)")
-    s.add_argument("--si-pas-fait", action="store_true",
-                   help="ne rien faire si la nuit a déjà été faite (utilisé par le Mac)")
+    s.add_argument("projet", nargs="?", help="un seul projet (par défaut : tous)")
+    s.add_argument("--date", help="moment simulé AAAA-MM-JJ ou AAAA-MM-JJTHH:MM (tests, démo)")
+    s.add_argument("--silencieux", action="store_true",
+                   help="n'affiche rien s'il n'y a rien à faire (utilisé par le Mac)")
     s.set_defaults(f=cmd_dormir)
-    s = sous.add_parser("installer-sommeil", help="lancer le sommeil chaque nuit (Mac)")
-    s.add_argument("--heure", type=int, default=3)
-    s.add_argument("--minute", type=int, default=30)
+    s = sous.add_parser("installer-sommeil", help="lancer le rêve au réveil du Mac")
+    s.add_argument("--intervalle", type=int, default=10,
+                   help="minutes entre deux vérifications (par défaut 10)")
     s.set_defaults(f=cmd_installer_sommeil)
     s = sous.add_parser("reve", help="les idées rêvées : lister, garder ou rejeter")
     s.add_argument("action", nargs="?", default="liste", choices=["liste", "garder", "rejeter"])

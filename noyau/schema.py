@@ -23,6 +23,13 @@ CREATE TABLE IF NOT EXISTS usages_synapses (
     jour        TEXT NOT NULL,
     UNIQUE (synapse_id, jour)
 );
+CREATE TABLE IF NOT EXISTS sommeils (
+    id        INTEGER PRIMARY KEY AUTOINCREMENT,
+    debut     TEXT NOT NULL,
+    statut    TEXT NOT NULL,
+    appels_ia INTEGER NOT NULL DEFAULT 0,
+    cout      REAL NOT NULL DEFAULT 0
+);
 CREATE TABLE IF NOT EXISTS reves (
     id             INTEGER PRIMARY KEY AUTOINCREMENT,
     date           TEXT NOT NULL,

@@ -40,6 +40,7 @@ class Fournisseur:
     nom = "?"
     gratuit = False         # offre gratuite = peut réutiliser les données
     local = False           # tourne sur la machine (rien ne sort)
+    payant = False          # offre payante (coûte de l'argent)
     branche = False         # code d'appel réellement écrit
     cle_reglage = None      # nom de la clé dans reglages.local
 
@@ -95,6 +96,7 @@ class GeminiGratuit(Fournisseur):
 
 class ClaudeAPI(Fournisseur):
     nom = "claude"
+    payant = True
     cle_reglage = "CLE_API_ANTHROPIC"
     branche = False  # à brancher plus tard
 
@@ -117,10 +119,11 @@ def fournisseurs_par_defaut():
 # Choix du fournisseur
 # ------------------------------------------------------------------
 
-def choisir(difficulte, sensible, fournisseurs):
+def choisir(difficulte, sensible, fournisseurs, payant_autorise=True):
     def ok(nom):
         f = fournisseurs.get(nom)
-        return f is not None and f.disponible()
+        return (f is not None and f.disponible()
+                and (payant_autorise or not f.payant))
 
     if sensible:
         ordre = ["local", "demo"]           # jamais une offre gratuite en ligne
@@ -169,14 +172,16 @@ def _noter_appel(conn, date, f, tache, difficulte, sensible, cout, statut):
 # La porte unique
 # ------------------------------------------------------------------
 
-def estimer(texte="", difficulte="courante", sensible=False, fournisseurs=None):
+def estimer(texte="", difficulte="courante", sensible=False, fournisseurs=None,
+            payant_autorise=True):
     """Sans rien appeler : quelle IA serait choisie, et combien coûterait l'appel."""
-    f = choisir(difficulte, sensible, fournisseurs or fournisseurs_par_defaut())
+    f = choisir(difficulte, sensible, fournisseurs or fournisseurs_par_defaut(), payant_autorise)
     return f, f.estimer_cout(texte)
 
 
 def demander_ia(tache, texte="", difficulte="courante", sensible=False, date=None,
-                racine=None, fournisseurs=None, plafond=None, temperature=None):
+                racine=None, fournisseurs=None, plafond=None, temperature=None,
+                payant_autorise=True):
     """
     temperature : de 0 (réponses sages et constantes) à 1 et plus (réponses
     créatives et variées). None = valeur par défaut du fournisseur.
@@ -185,7 +190,7 @@ def demander_ia(tache, texte="", difficulte="courante", sensible=False, date=Non
         raise ValueError(f"Difficulté inconnue : {difficulte!r} ({', '.join(DIFFICULTES)}).")
     fournisseurs = fournisseurs or fournisseurs_par_defaut()
     plafond = plafond_mensuel() if plafond is None else plafond
-    f = choisir(difficulte, sensible, fournisseurs)
+    f = choisir(difficulte, sensible, fournisseurs, payant_autorise)
     cout = f.estimer_cout(texte)
     mois = jour(date).strftime("%Y-%m")
 

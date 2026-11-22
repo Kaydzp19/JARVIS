@@ -1,33 +1,33 @@
 """
 Sommeil et rêve de JARVIS (marche 6).
 
-    python3 jarvis.py dormir                 tous les projets
-    python3 jarvis.py dormir --projet Demo-A un seul projet
-    python3 jarvis.py dormir --si-pas-fait   seulement si la nuit n'a pas déjà été faite
+    python3 jarvis.py dormir            tous les projets
+    python3 jarvis.py dormir Demo-A     un seul projet
 
-Chaque nuit, pour chaque projet, quatre phases s'enchaînent :
+Commande AUTONOME : n'importe quel déclencheur peut l'appeler (aujourd'hui la
+tâche planifiée du Mac, plus tard un mode nuit ou un serveur). Règle des 24 h :
+un projet qui a déjà rêvé dans les dernières 24 heures est laissé tranquille.
+
+Pour chaque projet (chacun rêve seul, l'étanchéité est conservée), 4 phases :
 
     1. tri      code d'abord (oubli des synapses, archivage sous le seuil),
-                puis une IA légère repère doublons, notes orphelines ou périmées.
+                puis l'IA repère doublons, notes orphelines ou périmées.
                 Toute modification de note devient une PROPOSITION (garde d'écriture).
-    2. analyse  résumé du projet entier (code + IA légère, nombre de jetons limité),
-                et proposition de synthèse pour les groupes de notes très liées.
+    2. analyse  résumé du projet entier (code puis IA, dans la limite de jetons des
+                réglages) et synthèses proposées pour les groupes de notes très liées.
     3. rêve     tirage au hasard de paires ou triplets de notes ÉLOIGNÉES ;
-                une IA créative imagine environ 5 idées.
-    4. réveil   une IA rigoureuse note chaque idée selon tes contraintes
-                (budget, niveau, objectifs) et ne garde que la meilleure.
+                une IA créative (température haute) imagine les idées candidates.
+    4. réveil   une IA rigoureuse note chaque idée selon tes contraintes et ne
+                garde que la meilleure (idees_par_projet par nuit).
 
 Règles :
-- toute demande à l'IA passe par le routeur IA (noyau/routeur_ia.py) ;
-- les notes sensibles ne sont jamais envoyées à l'IA pendant le sommeil ;
-- plafond de dépense par nuit (0,03 € par défaut) : au-delà, arrêt propre ;
+- toute demande à l'IA passe par le routeur IA (noyau/routeur_ia.py), qui
+  utilise d'abord le modèle local (Ollama) s'il est disponible ;
+- notes sensibles : seulement vers le modèle local ; sans lui, exclues du rêve ;
+- cloud payant : seulement pour le réveil, si cloud_pour_reveil=true, et dans la
+  limite du budget IA mensuel du routeur (pas de plafond propre au rêve) ;
 - le sommeil ne fait que PROPOSER : il n'écrit jamais dans les notes ;
 - chaque phase écrit une ligne au journal du projet.
-
-Sur Mac, la nuit est déclenchée par launchd (« python3 jarvis.py installer-sommeil »).
-Si le Mac dormait à l'heure prévue, launchd lance le sommeil au réveil ; s'il
-était éteint, le sommeil se lance à la prochaine ouverture de session
-(--si-pas-fait évite de le refaire deux fois la même nuit).
 """
 
 import json
@@ -36,7 +36,9 @@ import sys
 from pathlib import Path
 
 from noyau import agent as agents_mod
-from noyau import corps_calleux, projets, reglages, routeur_ia, synapses, systeme
+from datetime import date as date_, datetime, time, timedelta
+
+from noyau import corps_calleux, projets, reglages, routeur_ia, synapses
 from noyau.outils import jour, similarite
 
 REGLAGES_SOMMEIL = {
@@ -46,37 +48,34 @@ REGLAGES_SOMMEIL = {
 }
 
 
-class PlafondNuitAtteint(Exception):
-    """Levée quand la prochaine demande à l'IA ferait dépasser le plafond de la nuit."""
-
-
 # ------------------------------------------------------------------
-# La nuit : compteur de dépense commun à tous les projets
+# La nuit : compteur d'appels et accès au routeur IA
 # ------------------------------------------------------------------
 
 class Nuit:
 
-    def __init__(self, date, racine=None, plafond=None, fournisseurs=None):
-        self.date, self.racine, self.fournisseurs = date, racine, fournisseurs
-        self.plafond = (reglages.lire_nombre("SOMMEIL_PLAFOND_EUR_NUIT", 0.03)
-                        if plafond is None else plafond)
-        # Le plafond vaut pour la nuit entière, même si le sommeil est relancé
-        # (réveil du Mac, ouverture de session) : on repart de ce qui a déjà été dépensé.
-        self.deja_depense = depense_de_la_nuit(date, racine)
-        self.cout = self.deja_depense
+    def __init__(self, maintenant, racine=None, fournisseurs=None):
+        self.maintenant = maintenant
+        self.date = jour(maintenant)
+        self.racine, self.fournisseurs = racine, fournisseurs
+        self.cout = 0.0
         self.appels = 0
 
-    def ia(self, tache, demande, difficulte="courante", sensible=False, temperature=None):
-        """Demande à l'IA via le routeur ; « demande » est un dict envoyé en JSON."""
+    def modele_local_disponible(self):
+        f = (self.fournisseurs or routeur_ia.fournisseurs_par_defaut()).get("local")
+        return bool(f and f.disponible())
+
+    def ia(self, tache, demande, difficulte="courante", sensible=False, temperature=None,
+           payant_autorise=False):
+        """
+        Demande à l'IA via le routeur ; « demande » est un dict envoyé en JSON.
+        payant_autorise : le cloud payant n'est permis que si on le dit (phase réveil).
+        Le budget IA mensuel du routeur s'applique toujours.
+        """
         texte = json.dumps(demande, ensure_ascii=False)
-        _, cout = routeur_ia.estimer(texte, difficulte, sensible, self.fournisseurs)
-        if self.cout + cout > self.plafond + 1e-12:
-            raise PlafondNuitAtteint(
-                f"plafond de la nuit atteint : {self.cout:.3f} € déjà dépensés, "
-                f"la demande « {tache} » coûterait {cout:.3f} €, plafond {self.plafond:.3f} €")
         r = routeur_ia.demander_ia(tache, texte, difficulte, sensible, date=self.date,
                                    racine=self.racine, fournisseurs=self.fournisseurs,
-                                   temperature=temperature)
+                                   temperature=temperature, payant_autorise=payant_autorise)
         self.cout += r["cout_estime"]
         self.appels += 1
         r["donnees"] = lire_json(r["reponse"])
@@ -100,6 +99,7 @@ class Contexte:
     def __init__(self, projet, nuit, reglages_sommeil):
         self.projet, self.nuit = projet, nuit
         self.date, self.racine = nuit.date, nuit.racine
+        self.maintenant = nuit.maintenant
         self.r = reglages_sommeil
         self.sensible_projet = corps_calleux.projet_sensible(projet, self.racine)
         self.agent = agents_mod.charger("synthetiseur", racine=self.racine, date=self.date)
@@ -386,63 +386,73 @@ PHASES = [("tri", phase_tri), ("analyse", phase_analyse), ("rêve", reve.phase_r
 # La nuit complète
 # ------------------------------------------------------------------
 
-def depense_de_la_nuit(date, racine=None):
-    conn = systeme.connexion(racine)
+def _instant(maintenant):
+    """Accepte une date (prise à 3 h du matin), une date et heure, ou rien (maintenant)."""
+    if maintenant is None:
+        return datetime.now().replace(microsecond=0)
+    if isinstance(maintenant, datetime):
+        return maintenant
+    if isinstance(maintenant, date_):
+        return datetime.combine(maintenant, time(3, 0))
+    texte = str(maintenant)
+    return datetime.fromisoformat(texte) if "T" in texte or " " in texte \
+        else datetime.combine(date_.fromisoformat(texte), time(3, 0))
+
+
+def dernier_sommeil(projet, racine=None):
+    """Début du dernier sommeil du projet (datetime), ou None."""
+    conn = projets._connexion(projet, racine)
     try:
-        r = conn.execute("SELECT COALESCE(SUM(cout), 0) FROM nuits WHERE date = ?",
-                         (jour(date).isoformat(),)).fetchone()
-        return float(r[0])
+        r = conn.execute("SELECT debut FROM sommeils ORDER BY id DESC LIMIT 1").fetchone()
     finally:
         conn.close()
+    return datetime.fromisoformat(r["debut"]) if r else None
 
 
-def nuit_faite(projet, date, racine=None):
-    conn = systeme.connexion(racine)
-    try:
-        return conn.execute("SELECT 1 FROM nuits WHERE date = ? AND projet = ?",
-                            (jour(date).isoformat(), projet)).fetchone() is not None
-    finally:
-        conn.close()
+def a_reve_recemment(projet, maintenant, racine=None):
+    """Règle des 24 h : vrai si le projet a déjà rêvé dans les 24 dernières heures."""
+    dernier = dernier_sommeil(projet, racine)
+    return dernier is not None and maintenant - dernier < timedelta(hours=24)
 
 
-def _noter_nuit(projet, date, statut, cout, racine):
-    conn = systeme.connexion(racine)
+def _noter_sommeil(projet, maintenant, statut, appels, cout, racine):
+    conn = projets._connexion(projet, racine)
     try:
         with conn:
-            conn.execute("INSERT INTO nuits (date, projet, statut, cout) VALUES (?, ?, ?, ?) "
-                         "ON CONFLICT(date, projet) DO UPDATE SET statut = excluded.statut, "
-                         "cout = cout + excluded.cout",  # on additionne, jamais on n'efface
-                         (jour(date).isoformat(), projet, statut, cout))
+            conn.execute("INSERT INTO sommeils (debut, statut, appels_ia, cout) "
+                         "VALUES (?, ?, ?, ?)",
+                         (maintenant.isoformat(timespec="seconds"), statut, appels, cout))
     finally:
         conn.close()
 
 
-def dormir(date=None, projet=None, racine=None, reglages=None, fournisseurs=None,
-           si_pas_fait=False, plafond=None):
+def dormir(maintenant=None, projet=None, racine=None, reglages=None, fournisseurs=None):
     """
-    Fait dormir un projet (ou tous). Renvoie un bilan :
-    {"date", "cout", "appels_ia", "arret", "projets": {nom: {...résultats des phases}}}
+    Fait rêver un projet (ou tous). Les projets ayant rêvé dans les 24 dernières
+    heures sont ignorés. Renvoie un bilan :
+    {"maintenant", "cout", "appels_ia", "arret", "ignores", "projets": {nom: {...}}}
     """
-    date = jour(date)
+    maintenant = _instant(maintenant)
     r = dict(REGLAGES_SOMMEIL, **(reglages or {}))
-    nuit = Nuit(date, racine, plafond, fournisseurs)
+    nuit = Nuit(maintenant, racine, fournisseurs)
     tous = corps_calleux.lister_projets(racine)
     if projet is not None and projet not in tous:
         raise KeyError(f"Projet inconnu : {projet!r}")
     cibles = [projet] if projet else tous
-    bilan = {"date": date.isoformat(), "projets": {}, "arret": None, "ignores": []}
+    bilan = {"maintenant": maintenant.isoformat(timespec="seconds"), "projets": {},
+             "arret": None, "ignores": []}
 
     for p in cibles:
-        if si_pas_fait and nuit_faite(p, date, racine):
+        if a_reve_recemment(p, maintenant, racine):
             bilan["ignores"].append(p)
             continue
         ctx = Contexte(p, nuit, r)
         res = {}
-        cout_avant = nuit.cout
+        appels_avant, cout_avant = nuit.appels, nuit.cout
         for nom, phase in PHASES:
             try:
                 res.update(phase(ctx) or {})
-            except (PlafondNuitAtteint, routeur_ia.BudgetDepasse) as e:
+            except routeur_ia.BudgetDepasse as e:
                 bilan["arret"] = str(e)
                 ctx.journal(f"sommeil · arrêt propre pendant la phase {nom}", str(e))
                 break
@@ -451,15 +461,15 @@ def dormir(date=None, projet=None, racine=None, reglages=None, fournisseurs=None
                     f"{res.get('renforcees', 0)} renforcement(s), "
                     f"{res.get('archivees', 0)} archivage(s), "
                     f"{len(res['syntheses_proposees'])} synthèse(s) proposée(s), "
-                    f"coût IA {nuit.cout - cout_avant:.3f} €")
-        _noter_nuit(p, date, "arrêtée" if bilan["arret"] else "faite",
-                    nuit.cout - cout_avant, racine)
+                    f"{nuit.appels - appels_avant} appel(s) IA, "
+                    f"coût {nuit.cout - cout_avant:.3f} €")
+        _noter_sommeil(p, maintenant, "arrêté" if bilan["arret"] else "fait",
+                       nuit.appels - appels_avant, nuit.cout - cout_avant, racine)
         bilan["projets"][p] = res
         if bilan["arret"]:
-            break  # plafond atteint : on n'entame pas les projets suivants
+            break  # budget mensuel épuisé : on n'entame pas les projets suivants
 
-    bilan["cout"] = round(nuit.cout - nuit.deja_depense, 4)
-    bilan["cout_nuit_total"] = round(nuit.cout, 4)
+    bilan["cout"] = round(nuit.cout, 4)
     bilan["appels_ia"] = nuit.appels
     return bilan
 
@@ -471,13 +481,14 @@ def dormir(date=None, projet=None, racine=None, reglages=None, fournisseurs=None
 ETIQUETTE = "com.jarvis.sommeil"
 
 
-def plist_launchd(chemin_depot, dossier_donnees, python=None, heure=3, minute=30):
+def plist_launchd(chemin_depot, dossier_donnees, python=None, intervalle_minutes=10):
     """
-    Le fichier de réglage launchd (le planificateur du Mac).
-    - StartCalendarInterval : chaque nuit à l'heure dite ; si le Mac dormait,
-      launchd lance la tâche à son réveil.
-    - RunAtLoad : lancement aussi à l'ouverture de session (Mac éteint la nuit) ;
-      --si-pas-fait évite de refaire une nuit déjà faite.
+    Le fichier de réglage launchd (le planificateur intégré au Mac).
+    - RunAtLoad : lancement à l'ouverture de session (Mac allumé le matin).
+    - StartInterval : launchd relance la commande toutes les N minutes ; pendant la
+      veille, rien ne tourne, et dès le RÉVEIL du Mac l'intervalle écoulé déclenche
+      un lancement. La règle des 24 h fait que le rêve n'a lieu qu'une fois par jour.
+    Rien ne touche à la veille du Mac (pas de pmset).
     """
     python = python or sys.executable
     depot = Path(chemin_depot)
@@ -493,19 +504,14 @@ def plist_launchd(chemin_depot, dossier_donnees, python=None, heure=3, minute=30
         <string>{python}</string>
         <string>{depot / 'jarvis.py'}</string>
         <string>dormir</string>
-        <string>--si-pas-fait</string>
+        <string>--silencieux</string>
     </array>
     <key>WorkingDirectory</key>
     <string>{depot}</string>
-    <key>StartCalendarInterval</key>
-    <dict>
-        <key>Hour</key>
-        <integer>{heure}</integer>
-        <key>Minute</key>
-        <integer>{minute}</integer>
-    </dict>
     <key>RunAtLoad</key>
     <true/>
+    <key>StartInterval</key>
+    <integer>{int(intervalle_minutes) * 60}</integer>
     <key>StandardOutPath</key>
     <string>{journal}</string>
     <key>StandardErrorPath</key>

@@ -27,13 +27,6 @@ CREATE TABLE IF NOT EXISTS appels_ia (
     cout_estime REAL NOT NULL,
     statut      TEXT NOT NULL
 );
-CREATE TABLE IF NOT EXISTS nuits (
-    date    TEXT NOT NULL,
-    projet  TEXT NOT NULL,
-    statut  TEXT NOT NULL,
-    cout    REAL NOT NULL DEFAULT 0,
-    PRIMARY KEY (date, projet)
-);
 CREATE TABLE IF NOT EXISTS modules (
     nom   TEXT PRIMARY KEY,
     actif INTEGER NOT NULL DEFAULT 0,

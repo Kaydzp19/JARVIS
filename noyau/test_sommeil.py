@@ -73,9 +73,10 @@ class TestSommeil(TestTemporaire):
                                       python="/usr/bin/python3")
         self.assertIn("<string>/Users/kayd/JARVIS/jarvis.py</string>", texte)
         self.assertIn("<string>dormir</string>", texte)
-        self.assertIn("<integer>3</integer>", texte)
-        self.assertIn("<string>--si-pas-fait</string>", texte)
-        self.assertIn("<key>RunAtLoad</key>", texte)  # Mac éteint la nuit : rattrapage
+        self.assertIn("<key>RunAtLoad</key>", texte)        # ouverture de session
+        self.assertIn("<key>StartInterval</key>", texte)    # relancé au réveil du Mac
+        self.assertIn("<integer>600</integer>", texte)
+        self.assertNotIn("pmset", texte)                    # on ne touche pas à la veille
 
 
 class TestCommandeDormir(TestTemporaire):
@@ -89,21 +90,50 @@ class TestCommandeDormir(TestTemporaire):
     def test_un_seul_projet(self):
         bilan = sommeil.dormir(JOUR_1, projet="A", racine=self.racine)
         self.assertEqual(list(bilan["projets"]), ["A"])
-        self.assertTrue(sommeil.nuit_faite("A", JOUR_1, self.racine))
-        self.assertFalse(sommeil.nuit_faite("B", JOUR_1, self.racine))
+        self.assertIsNotNone(sommeil.dernier_sommeil("A", self.racine))
+        self.assertIsNone(sommeil.dernier_sommeil("B", self.racine))
         with self.assertRaises(KeyError):
             sommeil.dormir(JOUR_1, projet="Inconnu", racine=self.racine)
 
-    def test_tous_les_projets_et_rattrapage_sans_doublon(self):
-        bilan = sommeil.dormir(JOUR_1, racine=self.racine)
+    def test_regle_des_24_heures(self):
+        from datetime import datetime
+        t0 = datetime(2027, 1, 1, 8, 0)
+        self.assertEqual(sorted(sommeil.dormir(t0, racine=self.racine)["projets"]), ["A", "B"])
+        # Réveils suivants du Mac dans les 24 h : rien.
+        for heures in (1, 12, 23.9):
+            bilan = sommeil.dormir(t0 + timedelta(hours=heures), racine=self.racine)
+            self.assertEqual(bilan["projets"], {}, heures)
+            self.assertEqual(sorted(bilan["ignores"]), ["A", "B"])
+            self.assertEqual(bilan["appels_ia"], 0)
+        # 24 h après : on rêve à nouveau.
+        bilan = sommeil.dormir(t0 + timedelta(hours=24), racine=self.racine)
         self.assertEqual(sorted(bilan["projets"]), ["A", "B"])
-        # Au réveil (ou à l'ouverture de session), la nuit déjà faite n'est pas refaite.
-        bilan = sommeil.dormir(JOUR_1, racine=self.racine, si_pas_fait=True)
-        self.assertEqual(bilan["projets"], {})
-        self.assertEqual(sorted(bilan["ignores"]), ["A", "B"])
-        # La nuit suivante, si.
-        bilan = sommeil.dormir(JOUR_1 + timedelta(days=1), racine=self.racine, si_pas_fait=True)
-        self.assertEqual(sorted(bilan["projets"]), ["A", "B"])
+
+    def test_regle_des_24_heures_par_projet(self):
+        from datetime import datetime
+        t0 = datetime(2027, 1, 1, 8, 0)
+        sommeil.dormir(t0, projet="A", racine=self.racine)
+        bilan = sommeil.dormir(t0 + timedelta(hours=2), racine=self.racine)
+        self.assertEqual(list(bilan["projets"]), ["B"])
+        self.assertEqual(bilan["ignores"], ["A"])
+
+    def test_commande_autonome(self):
+        import os
+        import subprocess
+        import sys
+        from pathlib import Path
+        jarvis = Path(__file__).resolve().parent.parent / "jarvis.py"
+        lancer = lambda *a: subprocess.run([sys.executable, str(jarvis), "dormir", *a],
+                                           capture_output=True, text=True, env=dict(os.environ),
+                                           timeout=60)
+        r = lancer("A", "--date", "2027-01-01T08:00")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn('"A"', r.stdout)
+        r = lancer("--silencieux", "--date", "2027-01-01T09:00")  # comme le Mac, 1 h après
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn('"B"', r.stdout)         # B n'avait pas encore rêvé
+        r = lancer("--silencieux", "--date", "2027-01-01T10:00")
+        self.assertEqual(r.stdout.strip(), "")  # rien à faire : rien d'affiché
 
     def test_chaque_phase_ecrit_au_journal(self):
         sommeil.dormir(JOUR_1, projet="A", racine=self.racine)

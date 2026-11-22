@@ -89,8 +89,8 @@ class TestPhaseReveil(BaseReve):
 
     def test_une_seule_idee_par_nuit(self):
         self.dormir()
-        bilan = self.dormir()  # même nuit, relancé à la main
-        self.assertIsNone(bilan["projets"]["A"]["reve"])
+        bilan = self.dormir()  # même nuit, relancé : règle des 24 h
+        self.assertEqual(bilan["ignores"], ["A"])
         self.assertEqual(len(reve.lister("A", racine=self.racine)), 1)
         self.assertEqual(len(self.demandes("rever")), 1)  # pas de dépense inutile
         self.dormir(1)
