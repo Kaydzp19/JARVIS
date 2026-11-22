@@ -262,6 +262,13 @@ def utiliser_ensemble(projet, note_a, note_b, date, racine=None,
 # Oubli quotidien (et application du renforcement)
 # ------------------------------------------------------------------
 
+def prochaine_nuit(projet, racine=None):
+    """La nuit suivant la dernière nuit déjà calculée (pour « Simuler une nuit »)."""
+    dates = [_jour(s["oubli_calcule_jusqu_au"])
+             for s in lister_synapses(projet, racine, avec_archivees=False)]
+    return (max(dates) if dates else _date.today()) + timedelta(days=1)
+
+
 def appliquer_oubli(projet, date, racine=None, reglages=None,
                     acteur=ACTEUR_PAR_DEFAUT):
     """

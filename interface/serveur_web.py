@@ -29,7 +29,7 @@ if str(RACINE_DEPOT) not in sys.path:
 
 from noyau import agent as agents_mod  # noqa: E402
 from noyau import corps_calleux as cc  # noqa: E402
-from noyau import modules, orchestrateur, projets, reglages, routeur_ia  # noqa: E402
+from noyau import modules, orchestrateur, projets, reglages, routeur_ia, synapses  # noqa: E402
 
 PAGE = Path(__file__).resolve().parent / "cockpit.html"
 NOM_COOKIE = "jarvis_jeton"
@@ -39,16 +39,23 @@ NOM_COOKIE = "jarvis_jeton"
 # Données envoyées à la page
 # ------------------------------------------------------------------
 
-def etat(racine=None):
+def etat(racine=None, projet=None):
+    """
+    L'état du cockpit. Avec « projet », les listes ne montrent QUE ce projet
+    (un projet à la fois) ; la liste des projets (onglets) reste complète.
+    """
     noms = cc.lister_projets(racine)
     lignes_journal, propositions, projets_info, taches = [], [], [], []
     compte_agents = {}
     for p in noms:
         e = cc.etat_projet(p, racine)
         projets_info.append({"nom": p, "sensible": e["sensible"],
+                             "demo": cc.projet_demo(p, racine),
                              "notes": len(projets.lister_notes(p, racine)),
                              "taches_a_faire": sum(t["statut"] in orchestrateur.STATUTS_A_FAIRE
                                                    for t in e["taches"])})
+        if projet is not None and p != projet:
+            continue
         for t in e["taches"]:
             taches.append({"projet": p, "id": t["id"], "titre": t["titre"], "statut": t["statut"],
                            "echeance": t["echeance"], "planifiee": bool(t["contrat"])})
@@ -62,8 +69,15 @@ def etat(racine=None):
     lignes_journal.sort(key=lambda l: l["date"], reverse=True)
     agents = [dict(a.decrire(), actions=compte_agents.get(n, 0))
               for n, a in agents_mod.charger_tous(racine=racine).items()]
+    if projet is None:
+        maintenant = orchestrateur.prochaine_action(racine)
+    else:
+        maintenant = next((t["contrat"] for t in orchestrateur.taches_a_faire(racine)
+                           if t["projet"] == projet and t["contrat"]), None)
     return {
-        "maintenant": orchestrateur.prochaine_action(racine),
+        "projet": projet,
+        "mode_ia": routeur_ia.mode_ia(),
+        "maintenant": maintenant,
         "taches": taches,
         "propositions": propositions,
         "agents": agents,
@@ -74,6 +88,76 @@ def etat(racine=None):
         "modules": [dict(nom=m["nom"], description=m.get("description", ""),
                          **modules.etat(m["nom"], racine)) for m in modules.decouvrir()],
     }
+
+
+def cerveau(projet, racine=None):
+    """
+    Le cerveau d'UN projet, pour la 3D et l'aperçu 2D. Uniquement des titres et des
+    liens, jamais le contenu des notes.
+    - passif (mémoire) : notes = neurones cyan, synapses pondérées ;
+    - actif (action)   : agents, tâches à faire, propositions en attente (ambre) ;
+    - ponts            : liens actif → passif qui traversent le corps calleux.
+    """
+    if projet not in cc.lister_projets(racine):
+        raise KeyError(f"Projet inconnu : {projet!r}")
+    notes, liens = cc.titres_et_liens(projet, racine)
+    titres = {n["titre"]: n["id"] for n in notes}
+    passif = {
+        "neurones": [{"id": f"n{n['id']}", "titre": n["titre"], "validee": n["validee"]}
+                     for n in notes],
+        "synapses": [{"a": f"n{l['source']}", "b": f"n{l['cible']}", "poids": round(l["poids"], 3)}
+                     for l in liens],
+    }
+    e = cc.etat_projet(projet, racine)
+    equipe = agents_mod.charger_tous(racine=racine)
+    actif = {"neurones": [], "synapses": []}
+    ponts = []
+    for nom, a in equipe.items():
+        actif["neurones"].append({"id": f"a:{nom}", "titre": nom, "type": "agent", "voie": a.voie})
+    for t in e["taches"]:
+        if t["statut"] not in orchestrateur.STATUTS_A_FAIRE:
+            continue
+        tid = f"t{t['id']}"
+        actif["neurones"].append({"id": tid, "titre": t["titre"], "type": "tache",
+                                  "statut": t["statut"], "planifiee": bool(t["contrat"])})
+        if t["contrat"] and "planificateur" in equipe:
+            actif["synapses"].append({"a": "a:planificateur", "b": tid, "poids": 0.6})
+        if t["note_id"]:
+            ponts.append({"actif": tid, "passif": f"n{t['note_id']}"})
+    for p in e["propositions_en_attente"]:
+        pid = f"p{p['id']}"
+        actif["neurones"].append({"id": pid, "titre": p["titre"], "type": "proposition",
+                                  "en_attente": True, "proposition": p["id"]})
+        auteur = p["acteur"][6:] if p["acteur"].startswith("agent:") else None
+        if auteur in equipe:
+            actif["synapses"].append({"a": f"a:{auteur}", "b": pid, "poids": 0.5})
+        if p["verification"] and "verificateur" in equipe:
+            actif["synapses"].append({"a": "a:verificateur", "b": pid, "poids": 0.4})
+        cibles = {titres[t] for t in p["liens"] if t in titres}
+        if p.get("note_cible"):
+            cibles.add(p["note_cible"])
+        for nid in sorted(cibles):
+            ponts.append({"actif": pid, "passif": f"n{nid}"})
+    return {"projet": projet, "demo": cc.projet_demo(projet, racine),
+            "sensible": e["sensible"], "passif": passif, "actif": actif, "ponts": ponts}
+
+
+def simuler_nuit(projet, racine=None):
+    """
+    « Simuler une nuit » : une nuit d'oubli et d'apprentissage sur les synapses
+    (oubli 0,02, apprentissage 0,10, archivage sous 0,05). Projets de DÉMO seulement,
+    pour ne jamais vieillir la vraie mémoire par un clic.
+    """
+    if not cc.projet_demo(projet, racine):
+        raise PermissionError("« Simuler une nuit » est réservé aux projets de démonstration.")
+    nuit = synapses.prochaine_nuit(projet, racine)
+    bilan = synapses.appliquer_oubli(projet, nuit, racine=racine, acteur="kayd (simulation)")
+    cc.journal(projet, "nuit simulée depuis le cockpit",
+               f"{bilan['renforcees']} renforcement(s), {bilan['archivees']} archivage(s)",
+               date=nuit, racine=racine, acteur="kayd (simulation)")
+    return dict(bilan, nuit=nuit.isoformat(),
+                reglages={k: synapses.REGLAGES[k] for k in ("oubli", "apprentissage",
+                                                             "seuil_archivage")})
 
 
 def graphe(racine=None):
@@ -173,7 +257,9 @@ class Gestionnaire(BaseHTTPRequestHandler):
                     return
                 return self._envoyer(200, PAGE.read_bytes(), "text/html; charset=utf-8")
             if url.path == "/api/etat":
-                return self._envoyer(200, etat(self.racine))
+                return self._envoyer(200, etat(self.racine, q.get("projet")))
+            if url.path == "/api/cerveau":
+                return self._envoyer(200, cerveau(q["projet"], self.racine))
             if url.path == "/api/graphe":
                 return self._envoyer(200, graphe(self.racine))
             if url.path == "/api/notes":
@@ -221,6 +307,8 @@ class Gestionnaire(BaseHTTPRequestHandler):
                 if d.get("sensible"):
                     cc.marquer_projet_sensible(d["nom"].strip(), racine=r)
                 return self._envoyer(200, {"ok": True})
+            if url.path == "/api/nuit":
+                return self._envoyer(200, simuler_nuit(d["projet"], self.racine))
             if url.path == "/api/tour":
                 return self._envoyer(200, orchestrateur.tour(racine=r))
             self._envoyer(404, {"erreur": "Introuvable"})

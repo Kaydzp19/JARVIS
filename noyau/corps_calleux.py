@@ -337,6 +337,16 @@ def marquer_projet_sensible(projet, racine=None):
         encoding="utf-8")
 
 
+def projet_demo(projet, racine=None):
+    """Un projet de démonstration (fausses données) porte un fichier DEMO dans son dossier."""
+    return (projets.dossier_projet(projet, racine) / "DEMO").exists()
+
+
+def marquer_projet_demo(projet, racine=None):
+    (projets.dossier_projet(projet, racine) / "DEMO").write_text(
+        "Projet de démonstration : données fictives.\n", encoding="utf-8")
+
+
 def etat_projet(projet, racine=None):
     conn = projets._connexion(projet, racine)
     try:
