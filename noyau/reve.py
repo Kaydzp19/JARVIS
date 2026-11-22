@@ -94,6 +94,18 @@ def lister_tous(statut=None, racine=None):
             for r in lister(p, statut, racine)]
 
 
+def idee_du_jour(projet, racine=None):
+    """
+    L'idée (ou les idées) du dernier rêve du projet, quel que soit son statut.
+    C'est ce que le futur cockpit affichera. Liste vide si le projet n'a jamais rêvé.
+    """
+    tous = lister(projet, racine=racine)
+    if not tous:
+        return []
+    derniere = max(r["date"] for r in tous)
+    return [r for r in tous if r["date"] == derniere]
+
+
 def trouver(identifiant, racine=None):
     """
     « Demo-A:3 » ou « 3 ». Renvoie (projet, id). Un simple numéro doit être

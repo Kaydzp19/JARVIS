@@ -152,14 +152,27 @@ class TestStockageEtCommandes(BaseReve):
             reve.trouver("A:99", racine=self.racine)
 
     def test_commandes_jarvis_reve(self):
+        self.assertIn("Aucune idée pour l'instant", self.jarvis("reve"))
         self.dormir()
         sortie = self.jarvis("reve")
         self.assertIn("[A:1]", sortie)
-        self.assertIn("sources :", sortie)
+        self.assertIn("nouvelle", sortie)
+        self.assertIn("notes sources :", sortie)
         sortie = self.jarvis("reve", "garder", "1", "bonne piste")
         self.assertIn("gardée", sortie)
-        self.assertIn("Aucune nouvelle idée", self.jarvis("reve"))
+        sortie = self.jarvis("reve")  # l'idée du jour reste visible, avec ma décision
+        self.assertIn("gardée", sortie)
+        self.assertIn("bonne piste", sortie)
         self.assertEqual(reve.lire("A", 1, racine=self.racine)["raison"], "bonne piste")
+
+    def test_idee_du_jour_est_celle_du_dernier_reve(self):
+        self.dormir()
+        self.dormir(1)
+        du_jour = reve.idee_du_jour("A", racine=self.racine)
+        self.assertEqual([r["id"] for r in du_jour], [2])
+        self.assertEqual(du_jour[0]["date"], (JOUR_1 + timedelta(days=1)).isoformat())
+        projets.creer_projet("Vide", racine=self.racine)
+        self.assertEqual(reve.idee_du_jour("Vide", racine=self.racine), [])
 
 
 class TestApprentissage(BaseReve):
