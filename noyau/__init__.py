@@ -1,0 +1,1 @@
+"""Noyau générique de JARVIS."""
