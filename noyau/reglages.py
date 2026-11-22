@@ -22,7 +22,24 @@ DEFAUTS = {
     "CLE_API_GEMINI": "",
     "CLE_API_ANTHROPIC": "",
     "COCKPIT_JETON": "",
+    # Sommeil et rêve (marche 6)
+    "SOMMEIL_PLAFOND_EUR_NUIT": "0.03",
+    "ANALYSE_MAX_TOKENS": "1500",
+    "TRI_PEREMPTION_JOURS": "90",
+    # Contraintes personnelles utilisées pour noter les idées du rêve.
+    # Les vraies valeurs vont dans reglages.local (jamais dans le dépôt).
+    "CONTRAINTE_BUDGET_EUR": "0",
+    "CONTRAINTE_NIVEAU": "débutant",
+    "CONTRAINTE_OBJECTIFS": "",
 }
+
+
+def lire_nombre(cle, defaut):
+    """Lit un réglage numérique (accepte la virgule française)."""
+    try:
+        return float(str(lire(cle)).replace(",", "."))
+    except ValueError:
+        return defaut
 
 
 def chemin_fichier():

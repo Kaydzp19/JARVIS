@@ -74,3 +74,46 @@ class TestSommeil(TestTemporaire):
         self.assertIn("<string>/Users/kayd/JARVIS/jarvis.py</string>", texte)
         self.assertIn("<string>dormir</string>", texte)
         self.assertIn("<integer>3</integer>", texte)
+        self.assertIn("<string>--si-pas-fait</string>", texte)
+        self.assertIn("<key>RunAtLoad</key>", texte)  # Mac éteint la nuit : rattrapage
+
+
+class TestCommandeDormir(TestTemporaire):
+
+    def setUp(self):
+        super().setUp()
+        for p in ("A", "B"):
+            projets.creer_projet(p, racine=self.racine)
+            cc.creer_note_humaine(p, "Note", "Une note.", date=JOUR_1, racine=self.racine)
+
+    def test_un_seul_projet(self):
+        bilan = sommeil.dormir(JOUR_1, projet="A", racine=self.racine)
+        self.assertEqual(list(bilan["projets"]), ["A"])
+        self.assertTrue(sommeil.nuit_faite("A", JOUR_1, self.racine))
+        self.assertFalse(sommeil.nuit_faite("B", JOUR_1, self.racine))
+        with self.assertRaises(KeyError):
+            sommeil.dormir(JOUR_1, projet="Inconnu", racine=self.racine)
+
+    def test_tous_les_projets_et_rattrapage_sans_doublon(self):
+        bilan = sommeil.dormir(JOUR_1, racine=self.racine)
+        self.assertEqual(sorted(bilan["projets"]), ["A", "B"])
+        # Au réveil (ou à l'ouverture de session), la nuit déjà faite n'est pas refaite.
+        bilan = sommeil.dormir(JOUR_1, racine=self.racine, si_pas_fait=True)
+        self.assertEqual(bilan["projets"], {})
+        self.assertEqual(sorted(bilan["ignores"]), ["A", "B"])
+        # La nuit suivante, si.
+        bilan = sommeil.dormir(JOUR_1 + timedelta(days=1), racine=self.racine, si_pas_fait=True)
+        self.assertEqual(sorted(bilan["projets"]), ["A", "B"])
+
+    def test_chaque_phase_ecrit_au_journal(self):
+        sommeil.dormir(JOUR_1, projet="A", racine=self.racine)
+        evenements = [l["evenement"] for l in projets.lire_journal("A", racine=self.racine)
+                      if l["acteur"] == "sommeil"]
+        for nom, _ in sommeil.PHASES:
+            self.assertTrue(any(e.startswith(f"sommeil · {nom}") for e in evenements),
+                            f"pas de ligne de journal pour la phase {nom}")
+        self.assertEqual(evenements[-1], "sommeil terminé")
+
+    def test_lire_json_tolerant(self):
+        self.assertEqual(sommeil.lire_json('Voici : {"a": 1} merci'), {"a": 1})
+        self.assertIsNone(sommeil.lire_json("pas de JSON"))

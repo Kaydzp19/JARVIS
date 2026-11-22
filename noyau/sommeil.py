@@ -1,24 +1,42 @@
 """
-Sommeil de JARVIS (marche 6) : la consolidation nocturne.
+Sommeil et rêve de JARVIS (marche 6).
 
-Chaque nuit, pour chaque projet :
-1. l'oubli est appliqué (les synapses s'affaiblissent, les liens utilisés
-   ensemble la veille se renforcent, les plus faibles sont archivés) ;
-2. JARVIS repère les groupes de notes très liées entre elles ;
-3. l'agent « synthetiseur » propose une note de synthèse pour chaque
-   nouveau groupe. Elle reste EN ATTENTE : Kayd la valide au réveil.
-4. Une ligne de journal explique ce qui a été fait et pourquoi.
+    python3 jarvis.py dormir                 tous les projets
+    python3 jarvis.py dormir --projet Demo-A un seul projet
+    python3 jarvis.py dormir --si-pas-fait   seulement si la nuit n'a pas déjà été faite
 
-Sur Mac, la nuit est déclenchée par launchd (le planificateur intégré au
-Mac) : voir « python3 jarvis.py installer-sommeil ». Limite : si le Mac
-est éteint, rien ne tourne (résolu plus tard par le VPS, marche 8).
+Chaque nuit, pour chaque projet, quatre phases s'enchaînent :
+
+    1. tri      code d'abord (oubli des synapses, archivage sous le seuil),
+                puis une IA légère repère doublons, notes orphelines ou périmées.
+                Toute modification de note devient une PROPOSITION (garde d'écriture).
+    2. analyse  résumé du projet entier (code + IA légère, nombre de jetons limité),
+                et proposition de synthèse pour les groupes de notes très liées.
+    3. rêve     tirage au hasard de paires ou triplets de notes ÉLOIGNÉES ;
+                une IA créative imagine environ 5 idées.
+    4. réveil   une IA rigoureuse note chaque idée selon tes contraintes
+                (budget, niveau, objectifs) et ne garde que la meilleure.
+
+Règles :
+- toute demande à l'IA passe par le routeur IA (noyau/routeur_ia.py) ;
+- les notes sensibles ne sont jamais envoyées à l'IA pendant le sommeil ;
+- plafond de dépense par nuit (0,03 € par défaut) : au-delà, arrêt propre ;
+- le sommeil ne fait que PROPOSER : il n'écrit jamais dans les notes ;
+- chaque phase écrit une ligne au journal du projet.
+
+Sur Mac, la nuit est déclenchée par launchd (« python3 jarvis.py installer-sommeil »).
+Si le Mac dormait à l'heure prévue, launchd lance le sommeil au réveil ; s'il
+était éteint, le sommeil se lance à la prochaine ouverture de session
+(--si-pas-fait évite de le refaire deux fois la même nuit).
 """
 
+import json
+import re
 import sys
 from pathlib import Path
 
 from noyau import agent as agents_mod
-from noyau import corps_calleux, synapses
+from noyau import corps_calleux, reglages, routeur_ia, synapses, systeme
 from noyau.outils import jour
 
 REGLAGES_SOMMEIL = {
@@ -26,6 +44,80 @@ REGLAGES_SOMMEIL = {
     "taille_min_groupe": 3,    # nombre minimum de notes pour proposer une synthèse
 }
 
+
+class PlafondNuitAtteint(Exception):
+    """Levée quand la prochaine demande à l'IA ferait dépasser le plafond de la nuit."""
+
+
+# ------------------------------------------------------------------
+# La nuit : compteur de dépense commun à tous les projets
+# ------------------------------------------------------------------
+
+class Nuit:
+
+    def __init__(self, date, racine=None, plafond=None, fournisseurs=None):
+        self.date, self.racine, self.fournisseurs = date, racine, fournisseurs
+        self.plafond = (reglages.lire_nombre("SOMMEIL_PLAFOND_EUR_NUIT", 0.03)
+                        if plafond is None else plafond)
+        self.cout = 0.0
+        self.appels = 0
+
+    def ia(self, tache, demande, difficulte="courante", sensible=False, temperature=None):
+        """Demande à l'IA via le routeur ; « demande » est un dict envoyé en JSON."""
+        texte = json.dumps(demande, ensure_ascii=False)
+        _, cout = routeur_ia.estimer(texte, difficulte, sensible, self.fournisseurs)
+        if self.cout + cout > self.plafond + 1e-12:
+            raise PlafondNuitAtteint(
+                f"plafond de la nuit atteint : {self.cout:.3f} € déjà dépensés, "
+                f"la demande « {tache} » coûterait {cout:.3f} €, plafond {self.plafond:.3f} €")
+        r = routeur_ia.demander_ia(tache, texte, difficulte, sensible, date=self.date,
+                                   racine=self.racine, fournisseurs=self.fournisseurs,
+                                   temperature=temperature)
+        self.cout += r["cout_estime"]
+        self.appels += 1
+        r["donnees"] = lire_json(r["reponse"])
+        return r
+
+
+def lire_json(texte):
+    """Extrait l'objet JSON d'une réponse d'IA (même entouré de texte). None si illisible."""
+    m = re.search(r"\{.*\}", texte or "", re.S)
+    if not m:
+        return None
+    try:
+        return json.loads(m.group(0))
+    except json.JSONDecodeError:
+        return None
+
+
+class Contexte:
+    """Tout ce dont une phase a besoin pour un projet."""
+
+    def __init__(self, projet, nuit, reglages_sommeil):
+        self.projet, self.nuit = projet, nuit
+        self.date, self.racine = nuit.date, nuit.racine
+        self.r = reglages_sommeil
+        self.sensible_projet = corps_calleux.projet_sensible(projet, self.racine)
+        self.agent = agents_mod.charger("synthetiseur", racine=self.racine, date=self.date)
+
+    def journal(self, evenement, raison=None):
+        corps_calleux.journal(self.projet, evenement, raison, date=self.date,
+                              racine=self.racine, acteur="sommeil")
+
+    def notes(self):
+        """Toutes les notes du projet (id, titre, extrait, poids, sensible…)."""
+        return corps_calleux.se_souvenir(self.projet, "", 50, racine=self.racine)
+
+    def notes_partageables(self):
+        """Notes qui peuvent être envoyées à l'IA : jamais les sensibles."""
+        if self.sensible_projet:
+            return []
+        return [n for n in self.notes() if not n["sensible"]]
+
+
+# ------------------------------------------------------------------
+# Outils communs aux phases
+# ------------------------------------------------------------------
 
 def trouver_groupes(projet, racine=None, reglages=None):
     """Groupes de notes reliées par des synapses fortes (composantes connexes)."""
@@ -57,44 +149,123 @@ def trouver_groupes(projet, racine=None, reglages=None):
     return sorted(resultat, key=lambda g: g["notes"])
 
 
-def _deja_propose(projet, signature, racine):
-    marque = f"groupe {signature}"
-    return any(p["type"] == "synthese" and marque in (p["raison"] or "")
+def deja_propose(projet, marque, racine):
+    """Vrai si une proposition (quel que soit son statut) porte déjà cette marque."""
+    return any(marque in (p["raison"] or "")
                for p in corps_calleux.lister_propositions(projet, racine=racine))
 
 
-def dormir(date=None, racine=None, reglages=None):
+# ------------------------------------------------------------------
+# Phase 1 : tri
+# ------------------------------------------------------------------
+
+def phase_tri(ctx):
+    oubli = synapses.appliquer_oubli(ctx.projet, ctx.date, racine=ctx.racine)
+    ctx.journal("sommeil · tri",
+                f"oubli appliqué : {oubli['renforcees']} renforcement(s), "
+                f"{oubli['archivees']} archivage(s)")
+    return oubli
+
+
+# ------------------------------------------------------------------
+# Phase 2 : analyse
+# ------------------------------------------------------------------
+
+def phase_analyse(ctx):
+    notes = {n["id"]: n for n in ctx.notes()}
+    proposees = []
+    for g in trouver_groupes(ctx.projet, ctx.racine, ctx.r):
+        signature = ",".join(str(i) for i in g["notes"])
+        if deja_propose(ctx.projet, f"groupe {signature}", ctx.racine):
+            continue
+        membres = [notes[i] for i in g["notes"] if i in notes]
+        titres = [m["titre"] for m in membres]
+        sensible = ctx.sensible_projet or any(m["sensible"] for m in membres)
+        demande = {"consigne": "Résume en deux phrases ce qui relie ces notes.",
+                   "notes": [{"titre": m["titre"],
+                              "extrait": "" if m["sensible"] else m["extrait"]} for m in membres]}
+        reponse = ctx.nuit.ia("synthetiser", demande, "courante", sensible)
+        resume = (reponse["donnees"] or {}).get("resume") or reponse["reponse"]
+        contenu = (f"# Synthèse : {', '.join(titres)}\n\n{resume}\n\n"
+                   "Notes regroupées :\n" + "\n".join(f"- [[{t}]]" for t in titres) + "\n")
+        raison = (f"groupe {signature} : {len(titres)} notes très liées "
+                  f"(poids moyen {g['poids_moyen']:.2f}) repérées pendant le sommeil")
+        pid = ctx.agent.proposer(ctx.projet, "synthese", contenu, liens=titres,
+                                 titre=f"Synthèse : {', '.join(titres)}"[:80], raison=raison)
+        proposees.append(pid)
+    ctx.journal("sommeil · analyse", f"{len(proposees)} synthèse(s) proposée(s)")
+    return {"syntheses_proposees": proposees}
+
+
+PHASES = [("tri", phase_tri), ("analyse", phase_analyse)]
+
+
+# ------------------------------------------------------------------
+# La nuit complète
+# ------------------------------------------------------------------
+
+def nuit_faite(projet, date, racine=None):
+    conn = systeme.connexion(racine)
+    try:
+        return conn.execute("SELECT 1 FROM nuits WHERE date = ? AND projet = ?",
+                            (jour(date).isoformat(), projet)).fetchone() is not None
+    finally:
+        conn.close()
+
+
+def _noter_nuit(projet, date, statut, cout, racine):
+    conn = systeme.connexion(racine)
+    try:
+        with conn:
+            conn.execute("INSERT OR REPLACE INTO nuits (date, projet, statut, cout) "
+                         "VALUES (?, ?, ?, ?)", (jour(date).isoformat(), projet, statut, cout))
+    finally:
+        conn.close()
+
+
+def dormir(date=None, projet=None, racine=None, reglages=None, fournisseurs=None,
+           si_pas_fait=False, plafond=None):
+    """
+    Fait dormir un projet (ou tous). Renvoie un bilan :
+    {"date", "cout", "appels_ia", "arret", "projets": {nom: {...résultats des phases}}}
+    """
     date = jour(date)
-    synthetiseur = agents_mod.charger("synthetiseur", racine=racine, date=date)
-    bilan = {"date": date.isoformat(), "projets": {}}
-    for projet in corps_calleux.lister_projets(racine):
-        oubli = synapses.appliquer_oubli(projet, date, racine=racine)
-        notes = {n["id"]: n for n in corps_calleux.se_souvenir(projet, "", 50, racine=racine)}
-        sensible_projet = corps_calleux.projet_sensible(projet, racine)
-        proposees = []
-        for g in trouver_groupes(projet, racine, reglages):
-            signature = ",".join(str(i) for i in g["notes"])
-            if _deja_propose(projet, signature, racine):
-                continue
-            membres = [notes[i] for i in g["notes"] if i in notes]
-            titres = [m["titre"] for m in membres]
-            sensible = sensible_projet or any(m["sensible"] for m in membres)
-            texte = "\n".join(f"{m['titre']} : {m['extrait']}" for m in membres)
-            reponse = synthetiseur.ia("synthetiser", texte, "courante", sensible)
-            contenu = (f"# Synthèse : {', '.join(titres)}\n\n{reponse['reponse']}\n\n"
-                       "Notes regroupées :\n" + "\n".join(f"- [[{t}]]" for t in titres) + "\n")
-            raison = (f"groupe {signature} : {len(titres)} notes très liées "
-                      f"(poids moyen {g['poids_moyen']:.2f}) repérées pendant le sommeil")
-            pid = synthetiseur.proposer(projet, "synthese", contenu, liens=titres,
-                                        titre=f"Synthèse : {', '.join(titres)}"[:80],
-                                        raison=raison)
-            proposees.append(pid)
-        corps_calleux.journal(
-            projet, "sommeil terminé",
-            f"{oubli['renforcees']} renforcement(s), {oubli['archivees']} archivage(s), "
-            f"{len(proposees)} synthèse(s) proposée(s)",
-            date=date, racine=racine, acteur="sommeil")
-        bilan["projets"][projet] = dict(oubli, syntheses_proposees=proposees)
+    r = dict(REGLAGES_SOMMEIL, **(reglages or {}))
+    nuit = Nuit(date, racine, plafond, fournisseurs)
+    tous = corps_calleux.lister_projets(racine)
+    if projet is not None and projet not in tous:
+        raise KeyError(f"Projet inconnu : {projet!r}")
+    cibles = [projet] if projet else tous
+    bilan = {"date": date.isoformat(), "projets": {}, "arret": None, "ignores": []}
+
+    for p in cibles:
+        if si_pas_fait and nuit_faite(p, date, racine):
+            bilan["ignores"].append(p)
+            continue
+        ctx = Contexte(p, nuit, r)
+        res = {}
+        cout_avant = nuit.cout
+        for nom, phase in PHASES:
+            try:
+                res.update(phase(ctx) or {})
+            except (PlafondNuitAtteint, routeur_ia.BudgetDepasse) as e:
+                bilan["arret"] = str(e)
+                ctx.journal(f"sommeil · arrêt propre pendant la phase {nom}", str(e))
+                break
+        res.setdefault("syntheses_proposees", [])
+        ctx.journal("sommeil terminé",
+                    f"{res.get('renforcees', 0)} renforcement(s), "
+                    f"{res.get('archivees', 0)} archivage(s), "
+                    f"{len(res['syntheses_proposees'])} synthèse(s) proposée(s), "
+                    f"coût IA {nuit.cout - cout_avant:.3f} €")
+        _noter_nuit(p, date, "arrêtée" if bilan["arret"] else "faite",
+                    nuit.cout - cout_avant, racine)
+        bilan["projets"][p] = res
+        if bilan["arret"]:
+            break  # plafond atteint : on n'entame pas les projets suivants
+
+    bilan["cout"] = round(nuit.cout, 4)
+    bilan["appels_ia"] = nuit.appels
     return bilan
 
 
@@ -106,7 +277,13 @@ ETIQUETTE = "com.jarvis.sommeil"
 
 
 def plist_launchd(chemin_depot, dossier_donnees, python=None, heure=3, minute=30):
-    """Le fichier de réglage launchd qui lance « jarvis.py dormir » chaque nuit."""
+    """
+    Le fichier de réglage launchd (le planificateur du Mac).
+    - StartCalendarInterval : chaque nuit à l'heure dite ; si le Mac dormait,
+      launchd lance la tâche à son réveil.
+    - RunAtLoad : lancement aussi à l'ouverture de session (Mac éteint la nuit) ;
+      --si-pas-fait évite de refaire une nuit déjà faite.
+    """
     python = python or sys.executable
     depot = Path(chemin_depot)
     journal = Path(dossier_donnees) / "sommeil.log"
@@ -121,6 +298,7 @@ def plist_launchd(chemin_depot, dossier_donnees, python=None, heure=3, minute=30
         <string>{python}</string>
         <string>{depot / 'jarvis.py'}</string>
         <string>dormir</string>
+        <string>--si-pas-fait</string>
     </array>
     <key>WorkingDirectory</key>
     <string>{depot}</string>
@@ -131,6 +309,8 @@ def plist_launchd(chemin_depot, dossier_donnees, python=None, heure=3, minute=30
         <key>Minute</key>
         <integer>{minute}</integer>
     </dict>
+    <key>RunAtLoad</key>
+    <true/>
     <key>StandardOutPath</key>
     <string>{journal}</string>
     <key>StandardErrorPath</key>

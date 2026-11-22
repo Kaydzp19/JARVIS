@@ -51,7 +51,7 @@ class Fournisseur:
     def estimer_cout(self, texte):
         return 0.0
 
-    def repondre(self, tache, texte):
+    def repondre(self, tache, texte, temperature=None):
         raise NotImplementedError
 
 
@@ -67,7 +67,10 @@ class IADemo(Fournisseur):
     def estimer_cout(self, texte):
         return self.cout_par_appel
 
-    def repondre(self, tache, texte):
+    def repondre(self, tache, texte, temperature=None):
+        from noyau import ia_demo
+        if tache in ia_demo.TACHES:
+            return ia_demo.repondre(tache, texte, temperature)
         if tache == "planifier":
             sujet = texte.strip().splitlines()[0] if texte.strip() else "la tâche"
             return ("1. Préparer : rassembler ce qu'il faut pour « {0} » (10 min)\n"
@@ -166,8 +169,18 @@ def _noter_appel(conn, date, f, tache, difficulte, sensible, cout, statut):
 # La porte unique
 # ------------------------------------------------------------------
 
+def estimer(texte="", difficulte="courante", sensible=False, fournisseurs=None):
+    """Sans rien appeler : quelle IA serait choisie, et combien coûterait l'appel."""
+    f = choisir(difficulte, sensible, fournisseurs or fournisseurs_par_defaut())
+    return f, f.estimer_cout(texte)
+
+
 def demander_ia(tache, texte="", difficulte="courante", sensible=False, date=None,
-                racine=None, fournisseurs=None, plafond=None):
+                racine=None, fournisseurs=None, plafond=None, temperature=None):
+    """
+    temperature : de 0 (réponses sages et constantes) à 1 et plus (réponses
+    créatives et variées). None = valeur par défaut du fournisseur.
+    """
     if difficulte not in DIFFICULTES:
         raise ValueError(f"Difficulté inconnue : {difficulte!r} ({', '.join(DIFFICULTES)}).")
     fournisseurs = fournisseurs or fournisseurs_par_defaut()
@@ -190,7 +203,10 @@ def demander_ia(tache, texte="", difficulte="courante", sensible=False, date=Non
     finally:
         conn.close()
 
-    reponse = f.repondre(tache, texte)
+    if temperature is None:
+        reponse = f.repondre(tache, texte)
+    else:
+        reponse = f.repondre(tache, texte, temperature=temperature)
 
     conn = systeme.connexion(racine)
     try:

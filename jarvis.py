@@ -7,7 +7,7 @@ Exemples (depuis le dossier du dépôt) :
     python3 jarvis.py cockpit      ouvre le cockpit web (cerveau 3D, tâches, propositions)
     python3 jarvis.py maintenant   affiche ce qu'il faut faire maintenant
     python3 jarvis.py tour         un tour de l'orchestrateur (observer, décider, agir, mesurer)
-    python3 jarvis.py dormir       le sommeil : oubli + propositions de synthèse
+    python3 jarvis.py dormir       le sommeil et le rêve (--projet NOM pour un seul projet)
     python3 jarvis.py installer-sommeil   lance le sommeil chaque nuit (Mac, launchd)
     python3 jarvis.py propositions liste les propositions en attente
     python3 jarvis.py valider Demo-A 3     valide la proposition 3 du projet Demo-A
@@ -77,7 +77,7 @@ def cmd_tour(args):
 
 def cmd_dormir(args):
     from noyau import sommeil
-    _afficher(sommeil.dormir(args.date))
+    _afficher(sommeil.dormir(args.date, projet=args.projet, si_pas_fait=args.si_pas_fait))
 
 
 def cmd_installer_sommeil(args):
@@ -96,8 +96,9 @@ def cmd_installer_sommeil(args):
     subprocess.run(["launchctl", "unload", str(cible)], capture_output=True)
     r = subprocess.run(["launchctl", "load", "-w", str(cible)], capture_output=True, text=True)
     if r.returncode == 0:
-        print(f"Sommeil installé : chaque nuit à {args.heure}h{args.minute:02d} "
-              f"(si le Mac est allumé). Journal : {donnees / 'sommeil.log'}")
+        print(f"Sommeil installé : chaque nuit à {args.heure}h{args.minute:02d}. "
+              "Si le Mac dormait, il se lance au réveil ; s'il était éteint, "
+              f"à l'ouverture de session. Journal : {donnees / 'sommeil.log'}")
     else:
         print("Échec de l'installation :", r.stderr.strip())
 
@@ -163,8 +164,11 @@ def main(argv=None):
     s.set_defaults(f=cmd_cockpit)
     sous.add_parser("maintenant", help="la prochaine action").set_defaults(f=cmd_maintenant)
     sous.add_parser("tour", help="un tour de l'orchestrateur").set_defaults(f=cmd_tour)
-    s = sous.add_parser("dormir", help="le sommeil (oubli + synthèses)")
+    s = sous.add_parser("dormir", help="le sommeil et le rêve (un projet ou tous)")
+    s.add_argument("--projet", help="un seul projet (par défaut : tous)")
     s.add_argument("--date", help="date simulée AAAA-MM-JJ (par défaut aujourd'hui)")
+    s.add_argument("--si-pas-fait", action="store_true",
+                   help="ne rien faire si la nuit a déjà été faite (utilisé par le Mac)")
     s.set_defaults(f=cmd_dormir)
     s = sous.add_parser("installer-sommeil", help="lancer le sommeil chaque nuit (Mac)")
     s.add_argument("--heure", type=int, default=3)
