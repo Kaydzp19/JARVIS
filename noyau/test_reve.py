@@ -260,6 +260,17 @@ class TestScriptDemo(TestTemporaire):
         self.assertTrue(any(n["validee"] for n in notes))
         self.assertTrue(cc.lister_propositions("Projet A", "en attente"))
         self.assertTrue(sommeil.dernier_sommeil("Projet A"))
+        # De bout en bout : au moins une proposition par voie d'agent…
+        self.assertTrue(all(n >= 1 for n in demo.propositions_par_voie().values()),
+                        demo.propositions_par_voie())
+        # …une proposition validée par la vraie commande…
+        slogan = next(x for x in cc.lister_propositions("Projet A") if x["titre"] == "Slogan")
+        self.assertEqual(slogan["statut"], "validée")
+        self.assertIn("Slogan", [n["titre"] for n in projets.lister_notes("Projet A")])
+        # …et la mémoire lue par un vrai client MCP.
+        self.assertTrue(any(l["evenement"] == "démo : mémoire lue par MCP"
+                            for l in projets.lire_journal("Projet A")))
+        self.assertIn("5. Corps calleux (MCP)", sortie.getvalue())
         # Relancer la démo réutilise ce qui existe (pas de doublon).
         with redirect_stdout(io.StringIO()):
             demo.main(["--sans-interface", "--dossier", str(dossier)])

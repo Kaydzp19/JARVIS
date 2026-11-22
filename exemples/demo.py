@@ -109,23 +109,75 @@ def creer_demo(racine=None, aujourd_hui=None, remplacer=False, bavard=True):
     projets.creer_tache("Projet B", "Relire le carnet du mois", note_id=carnet,
                         racine=racine, acteur="demo")
 
-    # ---------------- Une nuit de sommeil, puis un tour ----------------
+    # Pour la voie « vérifier » : un lien vers une note qui n'existe pas encore.
+    note("Partenaires", "# Partenaires\nDemander des devis. Voir [[Fournisseurs]] (note à écrire).")
+    # Pour la voie « planifier » : le Projet B a fini sa seule tâche.
+    tache_b = projets.lister_taches("Projet B", racine=racine)[0]["id"]
+    orchestrateur.terminer("Projet B", tache_b, True, date=debut, racine=racine)
+
+    # ---------------- Une nuit de sommeil, puis l'orchestrateur ----------------
     nuit = sommeil.dormir(aujourd_hui, racine=racine)
-    bilan = orchestrateur.tour(aujourd_hui, racine=racine)
+    tour1 = orchestrateur.tour(aujourd_hui, racine=racine)   # agents des 4 voies
+    tour2 = orchestrateur.tour(aujourd_hui, racine=racine)   # vérification des nouvelles propositions
 
     if bavard:
-        print("Démo créée : « Projet A » (normal) et « Projet B » (sensible).")
-        print(f"- {len(bilan['actions'])} action(s) de l'orchestrateur, "
-              f"{bilan['appels_ia']} appel(s) à l'IA de démonstration (0 €).")
+        print("1. Mémoire : « Projet A » (normal) et « Projet B » (sensible), notes liées et validées.")
         a = nuit["projets"].get("Projet A", {})
-        print(f"- Sommeil : {len(a.get('tri_propositions', []))} proposition(s) de tri, "
-              f"{len(a.get('syntheses_proposees', []))} synthèse(s), un slogan en attente.")
         from noyau import reve
         idee = reve.lister("Projet A", racine=racine)
-        if idee:
-            print(f"- Rêve de la nuit (score {idee[-1]['score']}/10) : {idee[-1]['idee']}")
-        print("Pour voir et trier les idées rêvées : python3 jarvis.py reve")
+        print(f"2. Nuit de sommeil : {len(a.get('tri_propositions', []))} proposition(s) de tri, "
+              f"{len(a.get('syntheses_proposees', []))} synthèse(s)"
+              + (f", idée rêvée (score {idee[-1]['score']}/10) : {idee[-1]['idee']}" if idee else ""))
+        print(f"3. Orchestrateur : {len(tour1['actions']) + len(tour2['actions'])} action(s), "
+              f"{tour1['appels_ia'] + tour2['appels_ia']} appel(s) à l'IA simulée (0 €).")
+        par_voie = propositions_par_voie(racine)
+        print("   Propositions par voie d'agent : "
+              + ", ".join(f"{v} {n}" for v, n in par_voie.items()))
     return True
+
+
+VOIES_DES_AGENTS = {"agent:planificateur": "planifier", "agent:redacteur": "proposer",
+                    "agent:synthetiseur": "proposer", "agent:comparateur": "comparer",
+                    "agent:verificateur": "vérifier"}
+
+
+def propositions_par_voie(racine=None):
+    compte = {"planifier": 0, "proposer": 0, "comparer": 0, "vérifier": 0}
+    for p in PROJETS_DEMO:
+        for x in cc.lister_propositions(p, racine=racine):
+            voie = VOIES_DES_AGENTS.get(x["acteur"])
+            if voie:
+                compte[voie] += 1
+    return compte
+
+
+def valider_par_la_commande(dossier):
+    """Étape 4 : une proposition validée avec la vraie commande humaine."""
+    import subprocess
+    slogan = next((x for x in cc.lister_propositions("Projet A", "en attente")
+                   if x["titre"] == "Slogan"), None)
+    if slogan is None:
+        return None
+    commande = [sys.executable, "-m", "noyau.valider", "--dossier", str(dossier),
+                f"Projet A:{slogan['id']}"]
+    r = subprocess.run(commande, cwd=str(Path(__file__).resolve().parent.parent),
+                       capture_output=True, text=True, timeout=60)
+    print(f'4. Garde d\'écriture : python3 -m noyau.valider "Projet A:{slogan["id"]}"')
+    print("   " + (r.stdout.strip() or r.stderr.strip()))
+    return r.returncode
+
+
+def interroger_par_mcp(dossier):
+    """Étape 5 : le corps calleux, interrogé par un vrai client MCP (comme Claude)."""
+    from noyau.client_mcp import ClientMCP
+    with ClientMCP(dossier=dossier) as c:
+        outils = c.outils()
+        r = c.appeler("se_souvenir", projet="Projet A", requete="prix clair", limite=3)
+        c.appeler("journal", projet="Projet A", evenement="démo : mémoire lue par MCP",
+                  raison="vérification de bout en bout")
+    print(f"5. Corps calleux (MCP) : outils {', '.join(outils)} ; "
+          f"se_souvenir(« prix clair ») -> {', '.join(x['titre'] for x in r)}")
+    return r
 
 
 def dossier_demo():
@@ -149,8 +201,12 @@ def main(argv=None):
     os.environ["DOSSIER_DONNEES"] = str(dossier)   # tout ce qui suit travaille dans la démo
     os.environ.setdefault("mode_ia", "simule")     # IA simulée : aucune clé, 0 €
     print(f"Dossier de la démo : {dossier}")
-    creer_demo(remplacer=args.remplacer)
+    cree = creer_demo(remplacer=args.remplacer)
+    if cree:
+        valider_par_la_commande(dossier)
+    interroger_par_mcp(dossier)
     if not args.sans_interface:
+        print("6. Interface : cerveau 3D et cockpit (Ctrl + C pour arrêter).")
         from interface import serveur_web
         serveur_web.lancer(port=args.port, ouvrir=not args.sans_navigateur)
 
