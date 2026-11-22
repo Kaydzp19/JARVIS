@@ -1,6 +1,11 @@
 {
   "nom": "comparateur",
   "voie": "comparer",
-  "consigne": "Comparer deux notes et dire ce qu'elles ont en commun.",
-  "outils": ["se_souvenir", "journal", "ia"]
+  "consigne": "Comparer deux notes très proches et proposer une note de comparaison.",
+  "outils": [
+    "se_souvenir",
+    "proposer",
+    "journal",
+    "ia"
+  ]
 }

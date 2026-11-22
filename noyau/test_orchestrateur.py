@@ -68,7 +68,7 @@ class TestOrchestrateur(TestTemporaire):
     def test_agent_limite_a_ses_outils(self):
         verificateur = agents_mod.charger("verificateur", racine=self.racine, date=JOUR_1)
         with self.assertRaises(agents_mod.OutilInterdit):
-            verificateur.proposer("A", "note", "je ne devrais pas pouvoir")
+            verificateur.activer("A", [1, 2])  # renforcer la mémoire : pas son rôle
         with self.assertRaises(agents_mod.OutilInterdit):
             verificateur.ia("question", "x")
         with self.assertRaises(ValueError):

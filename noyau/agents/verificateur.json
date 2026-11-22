@@ -1,6 +1,10 @@
 {
   "nom": "verificateur",
   "voie": "verifier",
-  "consigne": "Vérifier une proposition avant que Kayd la voie : contenu présent, liens existants, aucune action sensible (publier, payer, supprimer).",
-  "outils": ["se_souvenir", "journal"]
+  "consigne": "Vérifier les propositions (contenu, liens, aucune action sensible) et signaler les liens [[...]] cassés des notes, par une proposition de modification.",
+  "outils": [
+    "se_souvenir",
+    "proposer",
+    "journal"
+  ]
 }

@@ -101,3 +101,54 @@ def verifier(agent, projet, proposition):
         problemes.append("action sensible (" + ", ".join(sensibles) +
                          ") : à faire uniquement par Kayd, jamais par un agent")
     return {"ok": not problemes, "problemes": problemes, "verifie_par": agent.nom}
+
+
+# ==================================================================
+# Chaque voie sait aussi PROPOSER (jamais écrire) : la garde d'écriture
+# attend la validation de Kayd (python3 -m noyau.valider).
+# ==================================================================
+
+def proposer_tache(agent, projet, note, marque):
+    """Voie planifier : un projet sans tâche reçoit une proposition de tâche."""
+    titre = f"Faire avancer « {note['titre']} »"
+    contenu = (f"{titre} : relire la note, décider de la prochaine étape concrète "
+               "et la noter dans le journal.")
+    pid = agent.proposer(projet, "tache", contenu, liens=[note["titre"]], titre=titre,
+                         raison=f"{marque} · le projet n'a plus de tâche à faire")
+    agent.journal(projet, f"tâche proposée (proposition {pid})", "aucune tâche à faire")
+    return pid
+
+
+def signaler_liens_casses(agent, projet, note, date, marque):
+    """Voie vérifier : une note qui pointe vers une note inexistante reçoit un avertissement."""
+    absents = ", ".join(f"« {t} »" for t in note["absents"])
+    contenu = (note["contenu"].rstrip() + f"\n\n> ⚠ Lien cassé ({date}) : {absents} ne correspond "
+               "à aucune note du projet. Crée la note ou corrige le lien.\n")
+    pid = agent.proposer(projet, "modification", contenu, titre=f"Vérifier « {note['titre']} »",
+                         raison=f"{marque} · lien vers une note inexistante : {absents}",
+                         note_cible=note["id"])
+    agent.journal(projet, f"lien cassé signalé (proposition {pid})", absents)
+    return pid
+
+
+def comparer_et_proposer(agent, projet, titre_a, titre_b, marque, sensible_projet=False):
+    """Voie comparer : deux notes très proches donnent une note de comparaison proposée."""
+    r = comparer(agent, projet, titre_a, titre_b, sensible_projet)
+    contenu = (f"# Comparaison : {titre_a} / {titre_b}\n\n{r['resultat']}\n\n"
+               f"Voir [[{titre_a}]] et [[{titre_b}]] : faut-il les fusionner ou les distinguer ?\n")
+    pid = agent.proposer(projet, "note", contenu, liens=[titre_a, titre_b],
+                         titre=f"Comparaison : {titre_a} / {titre_b}"[:80],
+                         raison=f"{marque} · deux notes très proches")
+    return pid
+
+
+def proposer_depuis_reve(agent, projet, reve, marque):
+    """Voie proposer : une idée rêvée que Kayd a gardée devient une note proposée."""
+    titre = ("Idée : " + reve["idee"])[:80]
+    liens = " ".join(f"[[{t}]]" for t in reve["sources_titres"])
+    contenu = (f"# {titre}\n\n{reve['idee']}\n\nNée du rêve du {reve['date']} "
+               f"(score {reve['score']}/10). Notes sources : {liens}\n")
+    pid = agent.proposer(projet, "note", contenu, liens=reve["sources_titres"], titre=titre,
+                         raison=f"{marque} · idée rêvée gardée par Kayd")
+    agent.journal(projet, f"note proposée depuis le rêve n°{reve['id']} (proposition {pid})")
+    return pid

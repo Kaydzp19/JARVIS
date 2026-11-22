@@ -73,7 +73,7 @@ class TestCorpsCalleux(TestTemporaire):
         cibles = {s["note_cible"] for s in synapses.lister_synapses("A", racine=self.racine)
                   if s["note_source"] == nid}
         self.assertEqual(cibles, {self.plan, self.budget})
-        self.assertEqual(cc.lire_proposition("A", pid, racine=self.racine)["statut"], "écrite")
+        self.assertEqual(cc.lire_proposition("A", pid, racine=self.racine)["statut"], "validée")
         with self.assertRaises(ValueError):
             cc.valider_proposition("A", pid, racine=self.racine)
 

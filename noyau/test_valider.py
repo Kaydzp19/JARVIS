@@ -43,7 +43,7 @@ class TestValider(TestTemporaire):
         self.assertIn("validée et écrite", sortie)
         self.assertEqual(len(projets.lister_notes("Projet A", racine=self.racine)), 2)
         self.assertEqual(cc.lire_proposition("Projet A", self.pa, racine=self.racine)["statut"],
-                         "écrite")
+                         "validée")
 
     def test_numero_ambigu_refuse(self):
         code, sortie = self.lancer("1")  # existe dans A et dans B

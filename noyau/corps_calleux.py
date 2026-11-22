@@ -31,7 +31,7 @@ from noyau.outils import jour, mots_cles, normaliser
 # Types de propositions acceptés. Rien ne permet de publier, payer ou
 # supprimer : ces actions ne peuvent pas être proposées par un agent.
 TYPES_PROPOSITION = ("note", "synthese", "tache", "modification")
-STATUTS = ("en attente", "écrite", "refusée")
+STATUTS = ("en attente", "validée", "refusée")
 MASQUE_SENSIBLE = "[note sensible : contenu masqué]"
 
 
@@ -282,7 +282,7 @@ def valider_proposition(projet, pid, date=None, racine=None, acteur="kayd", rais
         note_liee = _id_note_par_titre(projet, p["liens"][0], racine) if p["liens"] else None
         resultat = projets.creer_tache(projet, p["titre"], note_id=note_liee, racine=racine,
                                        acteur=acteur, raison=f"proposition {pid} validée")
-    _cloturer(projet, pid, "écrite", resultat, date, racine, acteur, raison)
+    _cloturer(projet, pid, "validée", resultat, date, racine, acteur, raison)
     return resultat
 
 
@@ -396,6 +396,20 @@ def enregistrer_contrat(projet, tache_id, contrat, date=None, racine=None, acteu
                           contrat.get("pourquoi"))
     finally:
         conn.close()
+
+
+def liens_casses(projet, racine=None):
+    """Notes dont un lien [[...]] ne mène à aucune note du projet (lecture seule)."""
+    notes = projets.lister_notes(projet, racine)
+    titres = {n["titre"] for n in notes}
+    resultat = []
+    for n in notes:
+        texte = projets.lire_note(projet, n["id"], racine)
+        absents = [t for t in projets.trouver_liens(texte) if t not in titres]
+        if absents:
+            resultat.append({"id": n["id"], "titre": n["titre"], "absents": absents,
+                             "contenu": texte, "sensible": bool(n["sensible"])})
+    return resultat
 
 
 def titres_et_liens(projet, racine=None):

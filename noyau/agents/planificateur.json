@@ -1,6 +1,11 @@
 {
   "nom": "planificateur",
   "voie": "planifier",
-  "consigne": "Transformer une tâche en un ordre clair : quoi, pourquoi, où, comment (3 étapes avec une durée), fin, après.",
-  "outils": ["se_souvenir", "journal", "ia"]
+  "consigne": "Transformer une tâche en un ordre clair (quoi, pourquoi, où, comment en 3 étapes, fin, après) ; proposer une tâche quand un projet n'en a plus.",
+  "outils": [
+    "se_souvenir",
+    "proposer",
+    "journal",
+    "ia"
+  ]
 }
