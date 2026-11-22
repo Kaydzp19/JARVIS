@@ -1,22 +1,22 @@
 """
-Routeur IA de JARVIS (marche 4) : la SEULE porte vers l'intelligence artificielle.
+Routeur IA de JARVIS : la SEULE porte vers l'intelligence artificielle.
 
     demander_ia(tache, texte, difficulte, sensible) -> {"reponse", "fournisseur", "cout_estime"}
 
-Règles :
-1. Une demande « sensible » ne part JAMAIS vers une offre gratuite en ligne
-   (les requêtes gratuites de Gemini peuvent servir à améliorer les produits
-   Google). Elle va vers un modèle local (marche 9) ou, en attendant, vers
-   l'IA de démonstration, qui tourne entièrement sur la machine.
-2. Tâche courante non sensible : Gemini gratuit (quand il sera branché).
-3. Tâche « critique » : Claude par API (quand il sera branché).
-4. Compteur de coûts : tout appel qui ferait dépasser le plafond mensuel
-   (BUDGET_IA_MAX_EUR_MOIS, 5 € par défaut) est BLOQUÉ.
+Deux modes (réglage mode_ia dans ~/.jarvis/reglages.local) :
+- « simule » (par défaut) : une IA simulée, locale et gratuite, répond à tout.
+  Aucune clé, rien ne sort de la machine. Idéal pour tester.
+- « reel » : les vraies IA, dans cet ordre de préférence :
+    1. le modèle local (Ollama) s'il est installé et renseigné ;
+    2. Gemini gratuit pour le courant NON sensible (clé CLE_API_GEMINI) ;
+    3. Claude par API (payant, clé CLE_API_ANTHROPIC) pour le « critique ».
 
-Prototype : seul le fournisseur « demo » est réellement branché. C'est une
-fausse IA, gratuite et locale, qui donne des réponses simples. Les autres
-fournisseurs sont déclarés mais « non branchés » : le routeur les ignore
-tant que leur code et leur clé ne sont pas en place.
+Règles :
+- une demande sensible ne part JAMAIS vers une offre en ligne (gratuite ou payante) :
+  seulement le modèle local ; sans lui, elle est refusée ;
+- compteur de coûts : tout appel qui ferait dépasser le plafond mensuel
+  (BUDGET_IA_MAX_EUR_MOIS, 5 € par défaut) est BLOQUÉ.
+- les clés ne sont lues que dans les réglages (jamais écrites ailleurs).
 """
 
 import json
@@ -27,6 +27,10 @@ from noyau import reglages, systeme
 from noyau.outils import jour, mots_cles
 
 DIFFICULTES = ("courante", "difficile", "critique")
+
+
+class AucuneIADisponible(RuntimeError):
+    """Aucune IA permise n'est disponible pour cette demande (ex. sensible sans modèle local)."""
 
 
 class BudgetDepasse(Exception):
@@ -88,22 +92,73 @@ class IADemo(Fournisseur):
         return "(Réponse de démonstration) J'ai bien reçu : " + texte.strip()[:200]
 
 
+def _poster_json(url, corps, entetes, delai=300):
+    """Envoie une requête HTTPS POST en JSON et renvoie la réponse décodée (bibliothèque standard)."""
+    import urllib.request
+    req = urllib.request.Request(url, data=json.dumps(corps).encode("utf-8"),
+                                 headers=dict(entetes, **{"Content-Type": "application/json"}))
+    with urllib.request.urlopen(req, timeout=delai) as r:
+        return json.loads(r.read())
+
+
+def _demande_json(texte):
+    return texte.lstrip().startswith("{")
+
+
 class GeminiGratuit(Fournisseur):
+    """Gemini, offre gratuite de Google : seulement pour le courant NON sensible."""
     nom = "gemini"
     gratuit = True
     cle_reglage = "CLE_API_GEMINI"
-    branche = False  # à brancher plus tard (avec la clé de Kayd)
+    branche = True
+
+    def repondre(self, tache, texte, temperature=None):
+        modele = reglages.lire("modele_gemini")
+        url = f"{reglages.lire('gemini_url').rstrip('/')}/v1beta/models/{modele}:generateContent"
+        config = {}
+        if temperature is not None:
+            config["temperature"] = temperature
+        if _demande_json(texte):
+            config["responseMimeType"] = "application/json"
+        corps = {"contents": [{"role": "user", "parts": [{"text": texte}]}]}
+        if config:
+            corps["generationConfig"] = config
+        r = _poster_json(url, corps, {"x-goog-api-key": reglages.lire(self.cle_reglage)})
+        parties = (r.get("candidates") or [{}])[0].get("content", {}).get("parts", [])
+        return "".join(p.get("text", "") for p in parties)
 
 
 class ClaudeAPI(Fournisseur):
+    """
+    Claude par API (payant). Appel direct de l'API Messages en Python standard.
+    Le prix réel de chaque appel (jetons consommés) est compté dans le budget mensuel.
+    """
     nom = "claude"
     payant = True
     cle_reglage = "CLE_API_ANTHROPIC"
-    branche = False  # à brancher plus tard
+    branche = True
+    VERSION_API = "2026-10-21"
+    PRIX_ENTREE, PRIX_SORTIE = 4.0, 20.0  # par million de jetons (claude-opus-5-5), compté en €
 
     def estimer_cout(self, texte):
-        jetons = len(texte) / 4 + 800       # texte envoyé + réponse moyenne
-        return round(jetons / 1_000_000 * 15, 4)  # estimation prudente en €
+        entree, sortie = len(texte) / 4, 2000   # texte envoyé + réponse et réflexion moyennes
+        return round((entree * self.PRIX_ENTREE + sortie * self.PRIX_SORTIE) / 1_000_000, 4)
+
+    def repondre(self, tache, texte, temperature=None):
+        # temperature n'est pas envoyée : la version 2026-10-21 de l'API la refuse.
+        corps = {"model": reglages.lire("modele_claude"), "max_tokens": 16000,
+                 "output_config": {"effort": reglages.lire("effort_claude")},
+                 "messages": [{"role": "user", "content": texte}]}
+        r = _poster_json(f"{reglages.lire('anthropic_url').rstrip('/')}/v1/messages", corps,
+                         {"x-api-key": reglages.lire(self.cle_reglage),
+                          "anthropic-version": self.VERSION_API})
+        if r.get("stop_reason") == "refusal":
+            raise RuntimeError("Claude a refusé de répondre à cette demande.")
+        u = r.get("usage") or {}
+        self.dernier_cout_reel = round((u.get("input_tokens", 0) * self.PRIX_ENTREE
+                                        + u.get("output_tokens", 0) * self.PRIX_SORTIE)
+                                       / 1_000_000, 4)
+        return "".join(b.get("text", "") for b in r.get("content", []) if b.get("type") == "text")
 
 
 class ModeleLocal(Fournisseur):
@@ -161,8 +216,15 @@ class ModeleLocal(Fournisseur):
             return json.loads(r.read()).get("response", "")
 
 
+def mode_ia():
+    """« simule » (par défaut) ou « reel »."""
+    return "reel" if reglages.lire("mode_ia").strip().lower() in ("reel", "réel") else "simule"
+
+
 def fournisseurs_par_defaut():
-    return {f.nom: f for f in (IADemo(), GeminiGratuit(), ClaudeAPI(), ModeleLocal())}
+    if mode_ia() == "simule":
+        return {"demo": IADemo()}  # IA simulée : aucune clé, rien ne sort de la machine
+    return {f.nom: f for f in (ModeleLocal(), GeminiGratuit(), ClaudeAPI())}
 
 
 # ------------------------------------------------------------------
@@ -188,7 +250,10 @@ def choisir(difficulte, sensible, fournisseurs, payant_autorise=True):
             if sensible and f.gratuit and not f.local:
                 continue  # double sécurité
             return f
-    raise RuntimeError("Aucune IA disponible pour cette demande.")
+    raise AucuneIADisponible(
+        "Aucune IA disponible pour cette demande"
+        + (" (sensible : seul le modèle local est permis)." if sensible else
+           " (vérifie mode_ia, les clés API ou Ollama dans ~/.jarvis/reglages.local)."))
 
 
 # ------------------------------------------------------------------
@@ -259,10 +324,13 @@ def demander_ia(tache, texte="", difficulte="courante", sensible=False, date=Non
     finally:
         conn.close()
 
+    f.dernier_cout_reel = None
     if temperature is None:
         reponse = f.repondre(tache, texte)
     else:
         reponse = f.repondre(tache, texte, temperature=temperature)
+    if getattr(f, "dernier_cout_reel", None) is not None:
+        cout = f.dernier_cout_reel  # prix réel annoncé par le fournisseur
 
     conn = systeme.connexion(racine)
     try:

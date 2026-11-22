@@ -478,7 +478,7 @@ def dormir(maintenant=None, projet=None, racine=None, reglages=None, fournisseur
         for nom, phase in PHASES:
             try:
                 res.update(phase(ctx) or {})
-            except routeur_ia.BudgetDepasse as e:
+            except (routeur_ia.BudgetDepasse, routeur_ia.AucuneIADisponible) as e:
                 bilan["arret"] = str(e)
                 ctx.journal(f"sommeil · arrêt propre pendant la phase {nom}", str(e))
                 break

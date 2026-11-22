@@ -28,6 +28,13 @@ DEFAUTS = {
     "CLE_API_GEMINI": "",
     "CLE_API_ANTHROPIC": "",
     "COCKPIT_JETON": "",
+    # --- Routeur IA ---
+    "mode_ia": "simule",              # simule (sans clé) ou reel
+    "modele_gemini": "gemini-2.5-flash",
+    "gemini_url": "https://generativelanguage.googleapis.com",
+    "modele_claude": "claude-opus-5-5",
+    "effort_claude": "medium",
+    "anthropic_url": "https://api.anthropic.com",
     # --- Sommeil et rêve (marche 6) ---
     "idees_par_projet": "1",          # idées gardées par projet et par nuit
     "candidates_par_nuit": "5",       # idées imaginées par l'IA créative
@@ -45,6 +52,12 @@ DEFAUTS = {
 # Contenu du fichier créé automatiquement dans ~/.jarvis/ (aucun secret, aucune donnée perso).
 MODELE_FICHIER = """# Réglages de JARVIS — ce fichier est à toi, il n'est jamais envoyé sur GitHub.
 # Une ligne = un réglage : nom=valeur. Les lignes qui commencent par # sont ignorées.
+
+# --- IA ---
+# simule = IA simulée, sans clé ni Internet (par défaut). reel = vraies IA.
+mode_ia=simule
+# Budget maximum pour l'IA payante, en euros par mois.
+BUDGET_IA_MAX_EUR_MOIS=5
 
 # --- Sommeil et rêve ---
 # Nombre d'idées gardées par projet et par nuit.
