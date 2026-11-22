@@ -1,0 +1,6 @@
+{
+  "nom": "redacteur",
+  "voie": "proposer",
+  "consigne": "Proposer une nouvelle note ou tâche. Ne jamais écrire directement : tout passe par une proposition que Kayd valide.",
+  "outils": ["se_souvenir", "proposer", "journal", "ia"]
+}

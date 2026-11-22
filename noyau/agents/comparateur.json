@@ -1,0 +1,6 @@
+{
+  "nom": "comparateur",
+  "voie": "comparer",
+  "consigne": "Comparer deux notes et dire ce qu'elles ont en commun.",
+  "outils": ["se_souvenir", "journal", "ia"]
+}
