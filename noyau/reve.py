@@ -141,11 +141,35 @@ def changer_statut(projet, rid, statut, raison=None, date=None, racine=None, act
 
 
 def garder(projet, rid, raison=None, date=None, racine=None):
-    return changer_statut(projet, rid, "gardée", raison, date, racine)
+    """
+    Idée gardée : on renforce les synapses entre ses notes sources (activer).
+    Ces notes étaient éloignées, souvent sans lien : on crée d'abord le lien
+    (seulement entre notes validées), puis on l'active. Gain appliqué la nuit suivante.
+    """
+    r = changer_statut(projet, rid, "gardée", raison, date, racine)
+    crees = []
+    for a, b in combinations(r["sources"], 2):
+        sid = synapses.creer_synapse(projet, a, b, jour(date), racine=racine, acteur="kayd",
+                                     raison=f"idée rêvée n°{rid} gardée")
+        if sid is not None:
+            crees.append(sid)
+    bilan = corps_calleux.activer(projet, r["sources"], date=date, racine=racine, acteur="kayd",
+                                  raison=f"idée rêvée n°{rid} gardée")
+    corps_calleux.journal(projet, f"apprentissage : rêve n°{rid} gardé",
+                          f"{len(crees)} lien(s) créé(s), {bilan['activees']} synapse(s) activée(s)",
+                          date=date, racine=racine, acteur="kayd")
+    return dict(r, liens_crees=len(crees), synapses_activees=bilan["activees"])
 
 
 def rejeter(projet, rid, raison=None, date=None, racine=None):
+    """Idée rejetée : la raison va au journal et sera rappelée au prochain rêve."""
     return changer_statut(projet, rid, "rejetée", raison, date, racine)
+
+
+def rejets_recents(projet, racine=None, nombre=10):
+    """Les dernières idées rejetées, avec leur raison : rappelées aux IA du rêve."""
+    return [{"idee": r["idee"], "raison": r["raison"] or ""}
+            for r in lister(projet, "rejetée", racine)[-nombre:]]
 
 
 def deja_reve(projet, date, racine=None):
@@ -185,6 +209,8 @@ def phase_reve(ctx, rejets=None):
     rejets : idées déjà rejetées par Kayd, rappelées pour ne pas les répéter.
     """
     ctx.idees, ctx.combinaisons = [], []
+    if rejets is None:
+        rejets = rejets_recents(ctx.projet, ctx.racine)
     if deja_reve(ctx.projet, ctx.date, ctx.racine):
         ctx.journal("sommeil · rêve", "déjà rêvé cette nuit : une seule idée par nuit")
         return {"idees_revees": 0}
@@ -244,6 +270,8 @@ def phase_reve(ctx, rejets=None):
 def phase_reveil(ctx, rejets=None):
     """Une IA rigoureuse note les idées ; on ne garde que la meilleure (ou aucune)."""
     idees = getattr(ctx, "idees", [])
+    if rejets is None:
+        rejets = rejets_recents(ctx.projet, ctx.racine)
     if not idees:
         ctx.journal("sommeil · réveil", "aucune idée à évaluer cette nuit")
         return {"reve": None}

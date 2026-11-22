@@ -160,3 +160,46 @@ class TestStockageEtCommandes(BaseReve):
         self.assertIn("gardée", sortie)
         self.assertIn("Aucune nouvelle idée", self.jarvis("reve"))
         self.assertEqual(reve.lire("A", 1, racine=self.racine)["raison"], "bonne piste")
+
+
+class TestApprentissage(BaseReve):
+
+    def test_idee_gardee_renforce_ses_notes_sources(self):
+        from noyau import synapses
+        self.dormir()
+        r = reve.lister("A", racine=self.racine)[0]
+        a, b = r["sources"][:2]
+        self.assertIsNone(synapses.synapse_entre("A", a, b, racine=self.racine))  # éloignées
+        res = reve.garder("A", r["id"], "à creuser", date=JOUR_1, racine=self.racine)
+        self.assertGreaterEqual(res["liens_crees"], 1)
+        self.assertGreaterEqual(res["synapses_activees"], 1)
+        sommeil.dormir(JOUR_1 + timedelta(days=1), projet="A", racine=self.racine,
+                       fournisseurs={"demo": self.espion})
+        poids = (synapses.synapse_entre("A", a, b, racine=self.racine)
+                 or synapses.synapse_entre("A", b, a, racine=self.racine))["poids"]
+        self.assertAlmostEqual(poids, 0.98 * 0.1 + 0.1)
+        journal = [l["evenement"] for l in projets.lire_journal("A", racine=self.racine)]
+        self.assertTrue(any("apprentissage : rêve n°" in e for e in journal))
+
+    def test_note_non_validee_jamais_renforcee_par_un_reve(self):
+        from noyau import synapses
+        brouillon = projets.creer_note("A", "Brouillon IA", "Idée non relue.", racine=self.racine)
+        bon = self.cuisine
+        self.assertIsNone(synapses.creer_synapse("A", brouillon, bon, JOUR_1, racine=self.racine))
+
+    def test_idee_rejetee_rappelee_et_pas_repetee(self):
+        self.dormir()
+        premiere = reve.lister("A", racine=self.racine)[0]
+        reve.rejeter("A", premiere["id"], "pas le moment", date=JOUR_1, racine=self.racine)
+        journal = projets.lire_journal("A", racine=self.racine)
+        self.assertTrue(any(l["raison"] == "pas le moment" for l in journal))
+        self.dormir(1)
+        demande_reve, _ = self.demandes("rever")[-1]
+        demande_eval, _ = self.demandes("evaluer")[-1]
+        rappel = {"idee": premiere["idee"], "raison": "pas le moment"}
+        self.assertIn(rappel, demande_reve["idees_rejetees"])
+        self.assertIn(rappel, demande_eval["idees_rejetees"])
+        seconde = reve.lister("A", racine=self.racine)[-1]
+        self.assertNotEqual(seconde["idee"], premiere["idee"])
+        from noyau.outils import similarite
+        self.assertLess(similarite(seconde["idee"], premiere["idee"]), 0.6)

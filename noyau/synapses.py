@@ -181,6 +181,35 @@ def creer_synapses_entrantes(projet, note_id, date, racine=None, reglages=None,
         conn.close()
 
 
+def creer_synapse(projet, note_a, note_b, date, racine=None, reglages=None,
+                  acteur=ACTEUR_PAR_DEFAUT, raison=None):
+    """
+    Crée une synapse a → b sans lien [[...]] écrit (par exemple quand Kayd garde
+    une idée rêvée). Seulement entre deux notes VALIDÉES du même projet.
+    Renvoie l'id de la synapse créée, ou None (déjà liée, ou note non validée).
+    """
+    r = _reglages(reglages)
+    conn = _ouvrir(projet, racine)
+    try:
+        validees = {x["id"] for x in conn.execute(
+            "SELECT id FROM notes WHERE id IN (?, ?) AND validee = 1", (note_a, note_b))}
+        if note_a == note_b or validees != {note_a, note_b}:
+            return None
+        existe = conn.execute(
+            "SELECT 1 FROM synapses WHERE (note_source = ? AND note_cible = ?) "
+            "OR (note_source = ? AND note_cible = ?)", (note_a, note_b, note_b, note_a)).fetchone()
+        if existe:
+            return None
+        with conn:
+            cur = conn.execute(
+                "INSERT INTO synapses (note_source, note_cible, poids, oubli_calcule_jusqu_au) "
+                "VALUES (?, ?, ?, ?)", (note_a, note_b, r["poids_initial"], _jour(date).isoformat()))
+            _journal(conn, date, f"synapse créée : {note_a} → {note_b}", acteur, raison)
+            return cur.lastrowid
+    finally:
+        conn.close()
+
+
 def relier_note(projet, note_id, date, racine=None, reglages=None, acteur=ACTEUR_PAR_DEFAUT):
     """Liens sortants ([[...]] de la note) + liens entrants (notes qui la citaient)."""
     return (creer_synapses_de_note(projet, note_id, date, racine, reglages, acteur)
