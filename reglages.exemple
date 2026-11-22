@@ -1,0 +1,21 @@
+# ============================================================
+# reglages.exemple : MODÈLE de fichier de réglages de JARVIS.
+#
+# Mode d'emploi :
+#   1. Copier ce fichier et nommer la copie « reglages.local ».
+#   2. Mettre ses vraies valeurs dans reglages.local.
+#   3. reglages.local n'est jamais envoyé sur GitHub
+#      (il est bloqué par le fichier .gitignore).
+#
+# Ne JAMAIS écrire de vraie clé ou de mot de passe dans CE fichier :
+# il est public.
+# ============================================================
+
+# Clé d'accès au service d'IA Gemini (laisser vide ici).
+CLE_API_GEMINI=
+
+# Dossier où JARVIS range ses données personnelles (hors du dépôt).
+DOSSIER_DONNEES=~/.jarvis
+
+# Budget maximum dépensé en IA, en euros par mois.
+BUDGET_IA_MAX_EUR_MOIS=5

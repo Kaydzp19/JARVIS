@@ -1,0 +1,36 @@
+# ============================================================
+# .gitignore : liste des fichiers que Git ne doit JAMAIS
+# envoyer sur GitHub. Ce dépôt est public : tout ce qui n'est
+# pas ignoré ici peut être vu par n'importe qui.
+# ============================================================
+
+# --- Secrets : clés API, mots de passe, jetons, certificats ---
+# Les vraies valeurs vont dans reglages.local (jamais envoyé).
+reglages.local
+*.env
+.env
+secrets/
+*.key
+*.pem
+
+# --- Données personnelles et bases de données ---
+# Le dossier de données de JARVIS est normalement ~/.jarvis
+# (dans le dossier personnel, donc hors du dépôt). Git ne comprend
+# pas le symbole « ~ » : on bloque aussi « .jarvis/ » par sécurité,
+# au cas où une copie atterrirait dans le dépôt.
+~/.jarvis/
+.jarvis/
+*.db
+*.sqlite
+projets/
+journal/
+
+# --- Environnements et caches Python ---
+# Fichiers générés automatiquement par Python, inutiles à partager.
+__pycache__/
+.venv/
+venv/
+
+# --- Fichiers système ---
+# Fichiers cachés créés par macOS dans chaque dossier.
+.DS_Store
