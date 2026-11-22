@@ -4,8 +4,10 @@ JARVIS est un assistant personnel modulaire, pensé comme un second cerveau.
 Il repose sur un **noyau** générique (le moteur commun) auquel on branche des **modules** (une fonction précise chacun).
 Le noyau ne contient rien de spécifique à un domaine : tout ce qui est particulier va dans un module.
 
-> **État : prototype fonctionnel.** Toutes les briques tournent en version simple, avec une IA de
-> démonstration (gratuite, locale, sans clé). Python seul : **rien à installer**.
+> **État : prototype fonctionnel n°1.** Toutes les briques tournent, avec une IA **simulée** par
+> défaut (gratuite, locale, sans clé). Python seul : **rien à installer**.
+
+![Le cockpit JARVIS : cerveau 3D à deux hémisphères et panneaux](docs/maquettes/cockpit-ordinateur.png)
 
 ## Comment c'est construit
 
@@ -28,21 +30,59 @@ HÉMISPHÈRE ACTIF                         HÉMISPHÈRE PASSIF
 - **Garde d'écriture** : un agent ne fait que **proposer**. Rien n'est écrit avant ta validation.
   Aucun agent ne peut publier, payer ou supprimer.
 
-## Démarrage rapide (Mac)
+## Essayer la démo sur ton Mac, pas à pas
 
-Ouvre l'application **Terminal**, va dans le dossier du dépôt, puis :
+La démo utilise de **fausses données** (« Projet A » et « Projet B ») rangées à part, dans
+`~/.jarvis/demo/` : elle ne touche jamais à tes vrais projets. L'IA est simulée : 0 €.
 
-1. Créer les projets de démonstration (Demo-A normal, Demo-B sensible, fausses données) :
-   `python3 jarvis.py demo`
-2. Ouvrir le cockpit (il s'ouvre dans ton navigateur ; Ctrl + C pour l'arrêter) :
-   `python3 jarvis.py cockpit`
-3. Brancher Claude Desktop au cerveau : `python3 jarvis.py config-claude` affiche le réglage
-   à coller, puis redémarre Claude Desktop et demande : « Que sais-tu du projet Demo-A ? »
-4. Lancer le rêve à chaque réveil du Mac (au plus une fois par 24 h) :
-   `python3 jarvis.py installer-sommeil`
+1. **Télécharger JARVIS.** Sur la page GitHub du dépôt, choisis la branche voulue, clique sur
+   le bouton vert **Code**, puis **Download ZIP**. Ouvre le fichier téléchargé : un dossier
+   `JARVIS-…` apparaît dans **Téléchargements**.
+2. **Ouvrir le Terminal.** Appuie sur **Cmd + Espace**, tape `Terminal`, puis **Entrée**.
+3. **Aller dans le dossier.** Tape `cd ` (avec l'espace), glisse le dossier `JARVIS-…` depuis le
+   Finder dans la fenêtre du Terminal, puis appuie sur **Entrée**.
+4. **Vérifier Python.** Tape `python3 --version` puis **Entrée**. Tu dois voir `Python 3.9` ou
+   plus. Si le Mac propose d'installer les « outils de développement », accepte et recommence.
+5. **Lancer la démo.** Tape :
 
-Autres commandes : `python3 jarvis.py --help`. Pour essayer sans toucher à tes vraies données,
-ajoute `--dossier /un/autre/dossier` juste après `jarvis.py`.
+   ```
+   python3 exemples/demo.py
+   ```
+
+   Le Terminal affiche « Démo créée… » puis « Cockpit JARVIS prêt », et ton navigateur s'ouvre
+   sur le cerveau 3D. **Laisse le Terminal ouvert** pendant que tu utilises l'interface.
+6. **Ce que tu peux essayer :**
+   - les onglets **Projet A / Projet B** (un projet à la fois) ;
+   - glisser sur le cerveau pour le tourner, cliquer sur un neurone pour voir ses liens ;
+   - **Simuler une nuit** : oubli 0,02, apprentissage 0,10, archivage sous 0,05 ;
+   - **Ordre du moment** : Fait / Pas fait ;
+   - **Propositions à valider** : bouton Valider, ou dans un **second** Terminal (même dossier) :
+     `python3 -m noyau.valider --dossier ~/.jarvis/demo "Projet A:1"`.
+7. **Arrêter.** Dans le Terminal, appuie sur **Ctrl + C**. Pour repartir d'une démo neuve :
+   `python3 exemples/demo.py --remplacer`.
+
+**Maquettes** (captures de la démo) : [ordinateur](docs/maquettes/cockpit-ordinateur.png) ·
+[projet sensible](docs/maquettes/cockpit-projet-sensible.png) · [iPhone](docs/maquettes/cockpit-iphone.png).
+Elles suivent le document du projet « JARVIS - design interface (direction visuelle) » :
+fond `#030811`, cyan `#5CE1FF` dominant, blanc `#E6F7FF`, gris-bleu `#86A9BC`, ambre `#FFB547`
+réservé à ce qui demande une action ; titres en Rajdhani, données en JetBrains Mono.
+
+Sur iPhone : la mise en page est prête (graphe en haut, panneaux en liste dessous), mais pour
+l'instant l'interface n'est ouverte qu'au Mac lui-même (127.0.0.1), par sécurité. L'accès depuis
+l'iPhone viendra avec le serveur (marche 8). En attendant, rétrécis la fenêtre du navigateur
+sur le Mac pour voir la version iPhone.
+
+## Avec tes vrais projets
+
+- Ouvrir le cockpit sur tes données (`~/.jarvis/`) : `python3 jarvis.py cockpit`
+- Brancher Claude Desktop : `python3 jarvis.py config-claude` affiche le réglage à coller.
+- Valider une proposition : `python3 -m noyau.valider` (liste), puis `python3 -m noyau.valider "Projet:numéro"`.
+- Lancer le rêve à chaque réveil du Mac : `python3 jarvis.py installer-sommeil`.
+- Passer aux vraies IA : dans `~/.jarvis/reglages.local`, mets `mode_ia=reel`, puis ta clé
+  `CLE_API_GEMINI=` (gratuit, pour le courant non sensible) et/ou `CLE_API_ANTHROPIC=` (payant,
+  plafonné à 5 € par mois), et/ou `modele_local=` (Ollama). Jamais de clé dans le chat ni le dépôt.
+
+Toutes les commandes : `python3 jarvis.py --help`.
 
 ## Sommeil et rêve
 
@@ -79,7 +119,7 @@ défaut à la première commande. Tu y mets aussi tes contraintes : `contrainte_
 `contrainte_niveau`, `contrainte_objectifs`.
 
 Sans clé API ni Ollama, tout tourne en mode démo (IA de démonstration, 0 €) :
-`python3 jarvis.py demo`, puis `python3 jarvis.py reve`.
+`python3 exemples/demo.py`, puis `python3 jarvis.py --dossier ~/.jarvis/demo reve`.
 
 ## Structure des dossiers
 
