@@ -370,7 +370,9 @@ def dernier_resume(projet, racine=None):
     return dict(r, stats=json.loads(r["stats"]))
 
 
-PHASES = [("tri", phase_tri), ("analyse", phase_analyse)]
+from noyau import reve  # noqa: E402  (les phases du rêve sont dans noyau/reve.py)
+
+PHASES = [("tri", phase_tri), ("analyse", phase_analyse), ("rêve", reve.phase_reve)]
 
 
 # ------------------------------------------------------------------

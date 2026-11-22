@@ -6,7 +6,9 @@ et répond dans le même format JSON, avec de simples règles de code.
 Gratuite, locale, sans clé : rien ne sort de la machine.
 """
 
+import hashlib
 import json
+import random
 import re
 from collections import Counter
 
@@ -73,7 +75,51 @@ def resumer(demande, temperature):
     return {"resume": " ".join(phrases)}
 
 
-TACHES = {"synthetiser": synthetiser, "trier": trier, "resumer": resumer}
+# Modèles d'idées, génériques (aucun domaine précis) : {a}, {b}, {c} = titres des notes.
+IDEES_PAIRES = [
+    ("Appliquer la logique de « {a} » à « {b} » : écrire une note qui transpose l'une dans "
+     "l'autre.", "faible", 0),
+    ("Tester pendant une semaine « {a} » au service de « {b} », puis noter ce qui a marché.",
+     "faible", 0),
+    ("Créer un mini-guide qui relie « {a} » et « {b} » pour quelqu'un qui découvre le sujet.",
+     "moyen", 0),
+    ("Construire un petit outil automatique qui fait le lien entre « {a} » et « {b} ».",
+     "fort", 30),
+    ("Demander l'avis de trois personnes sur le croisement « {a} » × « {b} ».", "faible", 0),
+    ("Transformer « {a} » et « {b} » en un format nouveau (fiche, vidéo courte, atelier).",
+     "moyen", 20),
+]
+IDEES_TRIPLETS = [
+    ("Écrire une checklist commune à « {a} », « {b} » et « {c} ».", "faible", 0),
+    ("Dessiner une carte qui montre comment « {a} », « {b} » et « {c} » se répondent.",
+     "faible", 0),
+    ("Lancer un petit projet pilote qui réunit « {a} », « {b} » et « {c} ».", "fort", 50),
+]
+
+
+def rever(demande, temperature):
+    graine = hashlib.sha256(json.dumps(demande, sort_keys=True).encode()).hexdigest()
+    rng = random.Random(graine)
+    rejetees = [r.get("idee", "") for r in demande.get("idees_rejetees", [])]
+    combos = demande.get("combinaisons", [])
+    idees, essais = [], 0
+    while combos and len(idees) < demande.get("nombre_idees", 5) and essais < 60:
+        essais += 1
+        notes = combos[len(idees) % len(combos)]["notes"] if essais < 30 else rng.choice(combos)["notes"]
+        modeles = IDEES_TRIPLETS if len(notes) >= 3 else IDEES_PAIRES
+        modele, effort, cout = rng.choice(modeles)
+        titres = dict(zip("abc", (n["titre"] for n in notes)))
+        texte = modele.format(**titres)
+        if any(texte == i["idee"] for i in idees):
+            continue
+        if any(similarite(texte, r) >= 0.6 for r in rejetees):
+            continue  # ressemble trop à une idée déjà rejetée
+        idees.append({"idee": texte, "sources": [n["id"] for n in notes],
+                      "effort": effort, "cout_estime_eur": cout})
+    return {"idees": idees}
+
+
+TACHES = {"synthetiser": synthetiser, "trier": trier, "resumer": resumer, "rever": rever}
 
 
 def repondre(tache, texte, temperature=None):
