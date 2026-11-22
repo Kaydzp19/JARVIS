@@ -192,3 +192,17 @@ class TestEtancheite(BaseTest):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestLienVersNoteFuture(BaseTest):
+
+    def test_lien_ecrit_avant_la_note_devient_une_synapse(self):
+        projets.creer_projet("A", racine=self.racine)
+        avant = self.note("A", "Plan", "Voir [[Budget]] (pas encore écrit)")
+        self.assertEqual(self.lier("A", avant), [])
+        budget = self.note("A", "Budget", "300")
+        crees = synapses.relier_note("A", budget, JOUR_1, racine=self.racine)
+        self.assertEqual(len(crees), 1)
+        self.assertAlmostEqual(self.poids("A", avant, budget), 0.1)
+        # Pas de doublon si on relie une seconde fois.
+        self.assertEqual(synapses.relier_note("A", budget, JOUR_1, racine=self.racine), [])

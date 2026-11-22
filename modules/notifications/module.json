@@ -1,0 +1,9 @@
+{
+  "nom": "notifications",
+  "description": "Prévient Kayd quand une tâche est prête (contrat d'action) ou terminée (Fait / Pas fait).",
+  "version": "0.1",
+  "lit": ["taches"],
+  "ecrit": ["journal", "boite"],
+  "demande": ["TELEGRAM_JETON", "TELEGRAM_CHAT_ID"],
+  "evenements": ["contrat_pret", "tache_terminee"]
+}

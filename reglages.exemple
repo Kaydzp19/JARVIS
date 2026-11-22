@@ -1,11 +1,10 @@
 # ============================================================
 # reglages.exemple : MODÈLE de fichier de réglages de JARVIS.
 #
-# Mode d'emploi :
-#   1. Copier ce fichier et nommer la copie « reglages.local ».
-#   2. Mettre ses vraies valeurs dans reglages.local.
-#   3. reglages.local n'est jamais envoyé sur GitHub
-#      (il est bloqué par le fichier .gitignore).
+# Les vrais réglages vivent dans ~/.jarvis/reglages.local (ton dossier
+# personnel, hors du dépôt). JARVIS crée ce fichier tout seul, avec les
+# valeurs par défaut, à la première commande. Tu peux aussi y copier
+# les lignes ci-dessous. Il n'est jamais envoyé sur GitHub.
 #
 # Ne JAMAIS écrire de vraie clé ou de mot de passe dans CE fichier :
 # il est public.
@@ -14,8 +13,33 @@
 # Clé d'accès au service d'IA Gemini (laisser vide ici).
 CLE_API_GEMINI=
 
+# Clé d'accès à Claude par API (facultatif, pour les tâches critiques).
+CLE_API_ANTHROPIC=
+
 # Dossier où JARVIS range ses données personnelles (hors du dépôt).
 DOSSIER_DONNEES=~/.jarvis
 
 # Budget maximum dépensé en IA, en euros par mois.
 BUDGET_IA_MAX_EUR_MOIS=5
+
+# --- Sommeil et rêve (marche 6) ---
+# Idées gardées par projet et par nuit.
+idees_par_projet=1
+# Idées candidates imaginées par l'IA créative chaque nuit.
+candidates_par_nuit=5
+# true = la phase réveil peut utiliser le cloud payant (dans la limite du budget mensuel).
+cloud_pour_reveil=false
+# Modèle local Ollama (ex. llama3.2). « aucun » tant qu'Ollama n'est pas installé.
+modele_local=aucun
+# Jetons envoyés au maximum pour le résumé de nuit (1 jeton ≈ 4 caractères).
+tokens_max_analyse=1500
+# Une note non modifiée depuis ce nombre de jours est proposée « à revoir ».
+tri_peremption_jours=90
+
+# --- Tes contraintes, pour noter les idées du rêve ---
+contrainte_budget_eur=0
+contrainte_niveau=débutant
+contrainte_objectifs=
+
+# Mot de passe du cockpit web. Vide = un jeton différent à chaque lancement.
+COCKPIT_JETON=

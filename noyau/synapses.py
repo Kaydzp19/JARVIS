@@ -25,7 +25,7 @@ Uniquement la bibliothèque standard de Python. Aucune logique de domaine.
 
 from datetime import date as _date, timedelta
 
-from noyau import projets
+from noyau import projets, schema
 
 # ------------------------------------------------------------------
 # Réglages : le SEUL endroit où changer ces valeurs.
@@ -40,24 +40,8 @@ REGLAGES = {
 
 ACTEUR_PAR_DEFAUT = "jarvis"
 
-SCHEMA_SYNAPSES = """
-CREATE TABLE IF NOT EXISTS synapses (
-    id              INTEGER PRIMARY KEY AUTOINCREMENT,
-    note_source     INTEGER NOT NULL REFERENCES notes(id),
-    note_cible      INTEGER NOT NULL REFERENCES notes(id),
-    poids           REAL NOT NULL CHECK (poids >= 0 AND poids <= 1),
-    activations     INTEGER NOT NULL DEFAULT 0,
-    dernier_usage   TEXT,
-    archivee        INTEGER NOT NULL DEFAULT 0 CHECK (archivee IN (0, 1)),
-    oubli_calcule_jusqu_au TEXT NOT NULL,
-    UNIQUE (note_source, note_cible)
-);
-CREATE TABLE IF NOT EXISTS usages_synapses (
-    synapse_id  INTEGER NOT NULL REFERENCES synapses(id),
-    jour        TEXT NOT NULL,
-    UNIQUE (synapse_id, jour)
-);
-"""
+# La structure des tables est dans noyau/schema.py.
+
 
 
 # ------------------------------------------------------------------
@@ -80,12 +64,7 @@ def _reglages(surcharge):
 
 def _installer(conn):
     """Ajoute à la base d'un projet ce dont la marche 2 a besoin (sans rien casser)."""
-    colonnes = {r["name"] for r in conn.execute("PRAGMA table_info(notes)")}
-    if "validee" not in colonnes:
-        conn.execute(
-            "ALTER TABLE notes ADD COLUMN validee INTEGER NOT NULL DEFAULT 0 "
-            "CHECK (validee IN (0, 1))")
-    conn.executescript(SCHEMA_SYNAPSES)
+    schema.installer(conn)
 
 
 def _ouvrir(projet, racine):
@@ -165,6 +144,76 @@ def creer_synapses_de_note(projet, note_id, date, racine=None, reglages=None,
         return crees
     finally:
         conn.close()
+
+
+def creer_synapses_entrantes(projet, note_id, date, racine=None, reglages=None,
+                             acteur=ACTEUR_PAR_DEFAUT):
+    """
+    Crée les synapses venant des notes qui citaient DÉJÀ cette note avec
+    [[son titre]] avant qu'elle existe. Sans cela, un lien écrit vers une
+    note future serait perdu. Renvoie la liste des synapses créées.
+    """
+    r = _reglages(reglages)
+    jour = _jour(date).isoformat()
+    notes = projets.lister_notes(projet, racine)
+    titre = next((n["titre"] for n in notes if n["id"] == note_id), None)
+    if titre is None:
+        raise KeyError(f"Aucune note {note_id} dans le projet {projet!r}.")
+    crees = []
+    conn = _ouvrir(projet, racine)
+    try:
+        with conn:
+            for n in notes:
+                if n["id"] == note_id:
+                    continue
+                if titre not in projets.trouver_liens(projets.lire_note(projet, n["id"], racine)):
+                    continue
+                cur = conn.execute(
+                    "INSERT OR IGNORE INTO synapses "
+                    "(note_source, note_cible, poids, oubli_calcule_jusqu_au) VALUES (?, ?, ?, ?)",
+                    (n["id"], note_id, r["poids_initial"], jour))
+                if cur.rowcount:
+                    crees.append(cur.lastrowid)
+                    _journal(conn, date, f"synapse créée : {n['id']} → {note_id}", acteur,
+                             f"lien [[{titre}]] écrit avant la note")
+        return crees
+    finally:
+        conn.close()
+
+
+def creer_synapse(projet, note_a, note_b, date, racine=None, reglages=None,
+                  acteur=ACTEUR_PAR_DEFAUT, raison=None):
+    """
+    Crée une synapse a → b sans lien [[...]] écrit (par exemple quand Kayd garde
+    une idée rêvée). Seulement entre deux notes VALIDÉES du même projet.
+    Renvoie l'id de la synapse créée, ou None (déjà liée, ou note non validée).
+    """
+    r = _reglages(reglages)
+    conn = _ouvrir(projet, racine)
+    try:
+        validees = {x["id"] for x in conn.execute(
+            "SELECT id FROM notes WHERE id IN (?, ?) AND validee = 1", (note_a, note_b))}
+        if note_a == note_b or validees != {note_a, note_b}:
+            return None
+        existe = conn.execute(
+            "SELECT 1 FROM synapses WHERE (note_source = ? AND note_cible = ?) "
+            "OR (note_source = ? AND note_cible = ?)", (note_a, note_b, note_b, note_a)).fetchone()
+        if existe:
+            return None
+        with conn:
+            cur = conn.execute(
+                "INSERT INTO synapses (note_source, note_cible, poids, oubli_calcule_jusqu_au) "
+                "VALUES (?, ?, ?, ?)", (note_a, note_b, r["poids_initial"], _jour(date).isoformat()))
+            _journal(conn, date, f"synapse créée : {note_a} → {note_b}", acteur, raison)
+            return cur.lastrowid
+    finally:
+        conn.close()
+
+
+def relier_note(projet, note_id, date, racine=None, reglages=None, acteur=ACTEUR_PAR_DEFAUT):
+    """Liens sortants ([[...]] de la note) + liens entrants (notes qui la citaient)."""
+    return (creer_synapses_de_note(projet, note_id, date, racine, reglages, acteur)
+            + creer_synapses_entrantes(projet, note_id, date, racine, reglages, acteur))
 
 
 # ------------------------------------------------------------------

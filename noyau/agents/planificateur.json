@@ -1,0 +1,6 @@
+{
+  "nom": "planificateur",
+  "voie": "planifier",
+  "consigne": "Transformer une tâche en un ordre clair : quoi, pourquoi, où, comment (3 étapes avec une durée), fin, après.",
+  "outils": ["se_souvenir", "journal", "ia"]
+}

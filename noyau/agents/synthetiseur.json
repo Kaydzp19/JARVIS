@@ -1,0 +1,6 @@
+{
+  "nom": "synthetiseur",
+  "voie": "proposer",
+  "consigne": "Pendant le sommeil, proposer une note de synthèse pour un groupe de notes très liées. Toujours à valider par Kayd.",
+  "outils": ["se_souvenir", "proposer", "journal", "ia"]
+}
