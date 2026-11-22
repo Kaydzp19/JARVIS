@@ -160,6 +160,19 @@ def simuler_nuit(projet, racine=None):
                                                              "seuil_archivage")})
 
 
+def idee_du_jour(projet, racine=None):
+    from noyau import reve
+    return reve.idee_du_jour(projet, racine)
+
+
+def decider_reve(projet, rid, decision, raison=None, racine=None):
+    from noyau import reve
+    if decision not in ("garder", "rejeter"):
+        raise ValueError("Décision inconnue.")
+    return (reve.garder if decision == "garder" else reve.rejeter)(projet, int(rid), raison,
+                                                                   racine=racine)
+
+
 def graphe(racine=None):
     """Uniquement titres et liens : jamais le contenu des notes."""
     resultat = []
@@ -258,6 +271,8 @@ class Gestionnaire(BaseHTTPRequestHandler):
                 return self._envoyer(200, PAGE.read_bytes(), "text/html; charset=utf-8")
             if url.path == "/api/etat":
                 return self._envoyer(200, etat(self.racine, q.get("projet")))
+            if url.path == "/api/reve":
+                return self._envoyer(200, idee_du_jour(q["projet"], self.racine))
             if url.path == "/api/cerveau":
                 return self._envoyer(200, cerveau(q["projet"], self.racine))
             if url.path == "/api/graphe":
@@ -307,6 +322,9 @@ class Gestionnaire(BaseHTTPRequestHandler):
                 if d.get("sensible"):
                     cc.marquer_projet_sensible(d["nom"].strip(), racine=r)
                 return self._envoyer(200, {"ok": True})
+            if url.path == "/api/reve":
+                r = decider_reve(d["projet"], d["id"], d["decision"], d.get("raison"), self.racine)
+                return self._envoyer(200, {"ok": True, "statut": r["statut"]})
             if url.path == "/api/nuit":
                 return self._envoyer(200, simuler_nuit(d["projet"], self.racine))
             if url.path == "/api/tour":

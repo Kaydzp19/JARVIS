@@ -72,7 +72,7 @@ class TestCockpit(TestTemporaire):
         import demo
         demo.creer_demo(racine=self.racine, bavard=False)
         etat = self.json("/api/etat")
-        self.assertEqual({p["nom"] for p in etat["projets"]}, {"Demo-A", "Demo-B"})
+        self.assertEqual({p["nom"] for p in etat["projets"]}, {"Projet A", "Projet B"})
         self.assertIsNotNone(etat["maintenant"])
         types = {p["type"] for p in etat["propositions"]}
         self.assertEqual(types, {"note", "synthese", "modification"})

@@ -2,70 +2,114 @@
 <html lang="fr">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>JARVIS Cockpit</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
 <style>
+  /* Direction visuelle JARVIS : fond nuit, cyan dominant, blanc, gris-bleu ;
+     ambre UNIQUEMENT pour ce qui demande une action. Lignes fines, coins marqués. */
   :root {
-    --fond: #000;
-    --panneau: #05080d;
-    --bleu: #3aa0ff;
-    --bleu-pale: #8cc8ff;
-    --blanc: #e8f3ff;
-    --gris: #6b7c90;
-    --trait: #14304d;
-    --alerte: #ff9f43;
-    --ok: #5ee0a0;
+    --fond: #030811;
+    --fond-panneau: rgba(8, 20, 34, 0.78);
+    --cyan: #5CE1FF;
+    --cyan-doux: rgba(92, 225, 255, 0.28);
+    --cyan-trait: rgba(92, 225, 255, 0.16);
+    --blanc: #E6F7FF;
+    --gris: #86A9BC;
+    --ambre: #FFB547;
+    --titre: "Rajdhani", "Avenir Next Condensed", "Arial Narrow", sans-serif;
+    --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   }
   * { box-sizing: border-box; }
   html, body { margin: 0; height: 100%; background: var(--fond); color: var(--blanc);
-    font: 13px/1.5 ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
-  header { display: flex; align-items: center; gap: 16px; padding: 10px 16px;
-    border-bottom: 1px solid var(--trait); flex-wrap: wrap; }
-  header h1 { margin: 0; font-size: 15px; letter-spacing: .3em; color: var(--bleu); font-weight: 600; }
-  header .info { color: var(--gris); font-size: 12px; }
-  header .info b { color: var(--bleu-pale); font-weight: 500; }
-  main { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(340px, 1fr);
-    height: calc(100% - 46px); }
-  #cerveau { position: relative; border-right: 1px solid var(--trait); min-height: 300px; }
-  #cerveau canvas { display: block; }
-  #cerveau .legende { position: absolute; left: 12px; right: 12px; bottom: 10px; color: var(--gris);
-    font-size: 11px; pointer-events: none; }
-  #cerveau .secours { padding: 24px; color: var(--gris); }
-  #panneaux { overflow-y: auto; padding: 12px 14px 40px; }
-  section { border: 1px solid var(--trait); background: var(--panneau); margin-bottom: 12px;
-    padding: 10px 12px; }
-  section h2 { margin: 0 0 8px; font-size: 11px; letter-spacing: .25em; color: var(--bleu);
-    font-weight: 600; text-transform: uppercase; }
-  .ligne { padding: 6px 0; border-top: 1px solid #0c1a2a; }
-  .ligne:first-of-type { border-top: 0; }
+    font: 12.5px/1.55 var(--mono); -webkit-font-smoothing: antialiased; }
+  button { font: inherit; cursor: pointer; }
+
+  /* ---------- barre du haut ---------- */
+  header { display: flex; align-items: center; gap: 18px; padding: 10px 18px;
+    border-bottom: 1px solid var(--cyan-trait); flex-wrap: wrap; position: relative; z-index: 2; }
+  .marque { display: flex; align-items: baseline; gap: 10px; }
+  .marque b { font: 700 22px/1 var(--titre); letter-spacing: .32em; color: var(--cyan); }
+  .marque span { color: var(--gris); font-size: 11px; letter-spacing: .12em; text-transform: uppercase; }
+  #onglets { display: flex; gap: 2px; overflow-x: auto; }
+  #onglets button { background: transparent; color: var(--gris); border: 1px solid var(--cyan-trait);
+    padding: 5px 14px; font: 600 14px/1.2 var(--titre); letter-spacing: .08em; white-space: nowrap; }
+  #onglets button[aria-selected="true"] { color: var(--fond); background: var(--cyan); border-color: var(--cyan); }
+  .infos { color: var(--gris); font-size: 11px; display: flex; gap: 14px; margin-left: auto; flex-wrap: wrap; }
+  .infos b { color: var(--blanc); font-weight: 500; }
+  .bouton { background: transparent; color: var(--cyan); border: 1px solid var(--cyan);
+    padding: 6px 12px; font: 600 13px/1 var(--titre); letter-spacing: .12em; text-transform: uppercase; }
+  .bouton:hover:not(:disabled) { background: rgba(92, 225, 255, .1); }
+  .bouton:disabled { color: var(--gris); border-color: var(--cyan-trait); cursor: not-allowed; }
+  .bouton.action { color: var(--ambre); border-color: var(--ambre); }
+  .bouton.discret { color: var(--gris); border-color: var(--cyan-trait); }
+
+  /* ---------- page ---------- */
+  main { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(360px, 1fr); height: calc(100% - 55px); }
+  #scene { position: relative; overflow: hidden; border-right: 1px solid var(--cyan-trait); }
+  #scene canvas { display: block; position: absolute; inset: 0; }
+  #cercles { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+  .legende { position: absolute; left: 16px; bottom: 14px; right: 16px; color: var(--gris); font-size: 10.5px;
+    display: flex; gap: 16px; flex-wrap: wrap; pointer-events: none; }
+  .legende i { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; vertical-align: 0; }
+  .titre-scene { position: absolute; left: 16px; top: 14px; pointer-events: none; }
+  .titre-scene h1 { margin: 0; font: 700 26px/1 var(--titre); letter-spacing: .18em; text-transform: uppercase; }
+  .titre-scene p { margin: 4px 0 0; color: var(--gris); font-size: 11px; }
+  #bulle { position: absolute; right: 16px; top: 14px; width: min(300px, calc(100% - 32px)); display: none; }
+  #secours { position: absolute; inset: 0; display: none; align-items: center; justify-content: center;
+    color: var(--gris); padding: 30px; text-align: center; }
+
+  #cockpit { overflow-y: auto; padding: 14px 16px 40px; display: flex; flex-direction: column; gap: 12px; }
+
+  /* Panneaux à coins marqués */
+  .panneau { position: relative; background: var(--fond-panneau); border: 1px solid var(--cyan-trait); padding: 12px 14px; }
+  .panneau::before, .panneau::after { content: ""; position: absolute; width: 10px; height: 10px; pointer-events: none; }
+  .panneau::before { left: -1px; top: -1px; border-left: 1.5px solid var(--cyan); border-top: 1.5px solid var(--cyan); }
+  .panneau::after { right: -1px; bottom: -1px; border-right: 1.5px solid var(--cyan); border-bottom: 1.5px solid var(--cyan); }
+  .panneau.alerte::before, .panneau.alerte::after { border-color: var(--ambre); }
+  .panneau h2 { margin: 0 0 10px; font: 600 14px/1 var(--titre); letter-spacing: .22em; text-transform: uppercase;
+    color: var(--cyan); display: flex; align-items: center; gap: 8px; }
+  .panneau h2 .compte { color: var(--fond); background: var(--ambre); font: 600 11px/1 var(--mono); padding: 3px 6px; letter-spacing: 0; }
+  .vide { color: var(--gris); }
+  .champ { display: grid; grid-template-columns: 88px 1fr; gap: 8px; padding: 3px 0; }
+  .champ > span:first-child { color: var(--gris); letter-spacing: .1em; font-size: 11px; padding-top: 1px; }
+  ol { margin: 2px 0; padding-left: 18px; }
+  .ligne { padding: 8px 0; border-top: 1px solid var(--cyan-trait); }
+  .ligne:first-of-type { border-top: 0; padding-top: 0; }
   .petit { color: var(--gris); font-size: 11px; }
-  .champ { display: grid; grid-template-columns: 84px 1fr; gap: 6px; margin: 2px 0; }
-  .champ > span:first-child { color: var(--bleu-pale); }
-  ol { margin: 4px 0 4px 18px; padding: 0; }
-  button { font: inherit; background: transparent; color: var(--blanc);
-    border: 1px solid var(--bleu); padding: 4px 10px; cursor: pointer; margin: 4px 6px 0 0; }
-  button:hover { background: #0d2238; }
-  button.ok { border-color: var(--ok); color: var(--ok); }
-  button.non { border-color: var(--alerte); color: var(--alerte); }
-  a, .lien { color: var(--bleu-pale); cursor: pointer; text-decoration: underline;
-    text-decoration-color: var(--trait); }
-  input, textarea, select { font: inherit; background: #000; color: var(--blanc);
-    border: 1px solid var(--trait); padding: 5px 7px; width: 100%; }
-  textarea { min-height: 150px; resize: vertical; }
-  pre { white-space: pre-wrap; margin: 4px 0; color: #b9d4ee; max-height: 160px; overflow: auto; }
-  .badge { display: inline-block; border: 1px solid var(--trait); padding: 0 6px;
-    font-size: 11px; color: var(--gris); margin-right: 4px; }
-  .badge.alerte { color: var(--alerte); border-color: var(--alerte); }
-  .badge.ok { color: var(--ok); border-color: var(--ok); }
-  .rangee { display: flex; gap: 6px; align-items: center; margin: 4px 0; }
-  .rangee > * { flex: 1; }
-  .rangee > button { flex: 0 0 auto; margin-top: 0; }
-  #message { position: fixed; right: 16px; bottom: 16px; background: #0d2238;
-    border: 1px solid var(--bleu); padding: 8px 12px; display: none; max-width: 80vw; }
+  .etiquette { display: inline-block; border: 1px solid var(--cyan-trait); color: var(--gris); font-size: 10.5px;
+    padding: 0 6px; margin-right: 6px; letter-spacing: .04em; }
+  .etiquette.ok { color: var(--cyan); border-color: var(--cyan-doux); }
+  .etiquette.action { color: var(--ambre); border-color: var(--ambre); }
+  .proposition { border-left: 2px solid var(--ambre); padding-left: 10px; margin-bottom: 10px; }
+  pre { white-space: pre-wrap; margin: 6px 0; color: #B9D6E6; max-height: 140px; overflow: auto; font: inherit; }
+  code.cmd { display: block; color: var(--ambre); background: rgba(255, 181, 71, .06); padding: 4px 8px;
+    margin: 6px 0; user-select: all; word-break: break-all; }
+  .voies { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .voie { border: 1px solid var(--cyan-trait); padding: 8px; min-height: 64px; }
+  .voie h3 { margin: 0 0 6px; font: 600 13px/1 var(--titre); letter-spacing: .14em; color: var(--blanc); text-transform: uppercase; }
+  #apercu { width: 100%; height: 170px; display: block; }
+  input, textarea { font: inherit; color: var(--blanc); background: rgba(3, 8, 17, .7);
+    border: 1px solid var(--cyan-trait); padding: 6px 8px; width: 100%; }
+  textarea { min-height: 110px; resize: vertical; }
+  .rangee { display: flex; gap: 6px; margin: 6px 0; align-items: center; }
+  .lien { color: var(--cyan); cursor: pointer; text-decoration: underline; text-decoration-color: var(--cyan-doux); }
+  #message { position: fixed; right: 16px; bottom: 16px; z-index: 5; display: none; max-width: 80vw;
+    background: #08182A; border: 1px solid var(--cyan); padding: 8px 12px; }
+
+  /* ---------- iPhone : graphe en haut, panneaux en liste dessous ---------- */
   @media (max-width: 860px) {
+    header { padding: 10px 16px; gap: 10px; }
+    .infos { margin-left: 0; width: 100%; }
     main { display: block; height: auto; }
-    #cerveau { height: 45vh; border-right: 0; border-bottom: 1px solid var(--trait); }
-    #panneaux { overflow: visible; padding: 10px 16px 40px; }
+    #scene { height: 56vh; min-height: 340px; border-right: 0; border-bottom: 1px solid var(--cyan-trait); }
+    #cockpit { overflow: visible; padding: 12px 16px 40px; }
+    .voies { grid-template-columns: repeat(2, 1fr); }
+    .titre-scene h1 { font-size: 20px; }
+    #bulle { left: 16px; right: 16px; width: auto; top: auto; bottom: 16px; }
+    .legende { display: none; }   /* sur iPhone, la légende passe sous l'aperçu 2D */
   }
 </style>
 <script type="importmap">
@@ -77,25 +121,45 @@
 </head>
 <body>
 <header>
-  <h1>J.A.R.V.I.S.</h1>
-  <span class="info" id="resume">chargement…</span>
-  <span class="info" id="budget"></span>
+  <div class="marque"><b>J.A.R.V.I.S.</b><span>second cerveau</span></div>
+  <nav id="onglets" role="tablist" aria-label="Projets"></nav>
+  <div class="infos"><span>IA <b id="mode">—</b></span><span>budget <b id="budget">—</b></span></div>
+  <button class="bouton" id="nuit" title="Oubli 0,02 · apprentissage 0,10 · archivage sous 0,05">Simuler une nuit</button>
 </header>
 <main>
-  <div id="cerveau"><div class="legende">neurones = notes · synapses = liens (épaisseur = poids) · une région par projet · glisser pour tourner, clic sur un neurone pour l'ouvrir</div></div>
-  <div id="panneaux">
-    <section id="p-maintenant"><h2>Maintenant</h2><div class="corps"></div></section>
-    <section id="p-propositions"><h2>Propositions · garde d'écriture</h2><div class="corps"></div></section>
-    <section id="p-editeur"><h2>Éditeur de notes</h2><div class="corps"></div></section>
-    <section id="p-taches"><h2>Tâches (tous projets)</h2><div class="corps"></div></section>
-    <section id="p-agents"><h2>Agents</h2><div class="corps"></div></section>
-    <section id="p-journal"><h2>Journal</h2><div class="corps"></div></section>
-  </div>
+  <section id="scene" aria-label="Cerveau 3D">
+    <svg id="cercles" aria-hidden="true"></svg>
+    <div class="titre-scene"><h1 id="nom-projet">—</h1><p id="resume-scene"></p></div>
+    <div class="panneau" id="bulle"></div>
+    <div id="secours">Le cerveau 3D a besoin d'Internet pour charger Three.js (la bibliothèque 3D).<br>L'aperçu 2D du cockpit reste disponible.</div>
+    <div class="legende">
+      <span><i style="background:#5CE1FF;box-shadow:0 0 6px #5CE1FF"></i>passif · note</span>
+      <span><i style="background:#E6F7FF;box-shadow:0 0 6px #E6F7FF"></i>actif · agent, tâche</span>
+      <span><i style="background:#FFB547;box-shadow:0 0 6px #FFB547"></i>proposition à valider</span>
+      <span>— trait = synapse (épaisseur = poids)</span>
+      <span>═ pont blanc = corps calleux</span>
+    </div>
+  </section>
+  <aside id="cockpit">
+    <div class="panneau" id="p-ordre"><h2>Ordre du moment</h2><div class="corps"></div></div>
+    <div class="panneau" id="p-propositions"><h2>Propositions à valider</h2><div class="corps"></div></div>
+    <div class="panneau" id="p-reve"><h2>Idée du jour</h2><div class="corps"></div></div>
+    <div class="panneau" id="p-agents"><h2>Agents · 4 voies</h2><div class="corps"></div></div>
+    <div class="panneau" id="p-apercu"><h2>Aperçu 2D du cerveau</h2><canvas id="apercu"></canvas>
+      <div class="petit">vue de dessus · cyan = notes (passif) · blanc = agents et tâches (actif) · ambre = à valider · traits blancs au centre = corps calleux</div></div>
+    <div class="panneau" id="p-journal"><h2>Journal</h2><div class="corps"></div></div>
+    <div class="panneau" id="p-notes"><h2>Notes</h2><div class="corps"></div></div>
+  </aside>
 </main>
-<div id="message"></div>
+<div id="message" role="status"></div>
 
 <script type="module">
-// ---------- outils ----------
+// =====================================================================
+// Outils
+// =====================================================================
+const C = { cyan: 0x5CE1FF, blanc: 0xE6F7FF, gris: 0x86A9BC, ambre: 0xFFB547, fond: 0x030811 };
+const CSS = { cyan: "#5CE1FF", blanc: "#E6F7FF", gris: "#86A9BC", ambre: "#FFB547" };
+
 function el(tag, attrs = {}, ...enfants) {
   const n = document.createElement(tag);
   for (const [k, v] of Object.entries(attrs)) {
@@ -103,283 +167,440 @@ function el(tag, attrs = {}, ...enfants) {
     else if (k.startsWith("on")) n.addEventListener(k.slice(2), v);
     else n.setAttribute(k, v);
   }
-  for (const e of enfants.flat()) if (e != null) n.append(e.nodeType ? e : document.createTextNode(String(e)));
+  for (const e of enfants.flat()) if (e != null && e !== false) n.append(e.nodeType ? e : document.createTextNode(String(e)));
   return n;
 }
-function corps(id) { const c = document.querySelector(`#${id} .corps`); c.replaceChildren(); return c; }
-function message(texte) {
-  const m = document.getElementById("message");
-  m.textContent = texte; m.style.display = "block";
-  clearTimeout(message.t); message.t = setTimeout(() => (m.style.display = "none"), 3500);
+const corps = id => { const c = document.querySelector(`#${id} .corps`); c.replaceChildren(); return c; };
+function message(t) {
+  const m = document.getElementById("message"); m.textContent = t; m.style.display = "block";
+  clearTimeout(message.t); message.t = setTimeout(() => (m.style.display = "none"), 3800);
 }
 async function api(chemin, donnees) {
-  const opts = donnees === undefined ? {} : {
-    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(donnees) };
+  const opts = donnees === undefined ? {} : { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(donnees) };
   const r = await fetch(chemin, { credentials: "same-origin", ...opts });
   const j = await r.json();
   if (!r.ok) throw new Error(j.erreur || r.status);
   return j;
 }
 async function action(fn, ok) {
-  try { await fn(); if (ok) message(ok); await rafraichir(); }
-  catch (e) { message("Erreur : " + e.message); }
+  try { await fn(); if (ok) message(ok); await rafraichir(); } catch (e) { message("Erreur : " + e.message.replace(/^\w+Error : /, "")); }
 }
+const enc = encodeURIComponent;
 
-// ---------- panneaux ----------
-let ETAT = null;
-const editeur = { projet: null, note: null };
-
-function afficherMaintenant(c) {
-  const b = corps("p-maintenant");
-  if (!c) {
-    b.append(el("div", { class: "petit" }, "Rien à faire pour l'instant. Ajoute une tâche ou lance un tour de l'orchestrateur."),
-      el("button", { onclick: () => action(() => api("/api/tour", {}), "Tour terminé.") }, "Lancer un tour"));
-    return;
-  }
-  const champ = (nom, ...val) => el("div", { class: "champ" }, el("span", {}, nom), el("span", {}, ...val));
-  b.append(
-    champ("QUOI", c.quoi, " ", el("span", { class: "badge" }, c.projet)),
-    champ("POURQUOI", c.pourquoi),
-    c.ou ? champ("OÙ", el("span", { class: "lien", onclick: () => ouvrirNote(c.projet, c.ou.note_id) }, c.ou.titre)) : null,
-    champ("COMMENT", el("div", {}, `${c.duree_totale_min} min au total`,
-      el("ol", {}, c.comment.map(e => el("li", {}, `${e.etape} (${e.duree_min} min)`)))) ),
-    champ("FIN", el("span", {},
-      el("button", { class: "ok", onclick: () => action(() => api("/api/tache", { projet: c.projet, id: c.tache_id, fait: true }), "Bravo. " + c.apres) }, "Fait"),
-      el("button", { class: "non", onclick: () => action(() => api("/api/tache", { projet: c.projet, id: c.tache_id, fait: false }), "Noté. On y reviendra.") }, "Pas fait"))),
-    champ("APRÈS", c.apres));
-}
-
-function afficherPropositions(liste) {
-  const b = corps("p-propositions");
-  if (!liste.length) { b.append(el("div", { class: "petit" }, "Aucune proposition en attente.")); return; }
-  for (const p of liste) {
-    const v = p.verification;
-    const badge = !v ? el("span", { class: "badge" }, "non vérifiée")
-      : v.ok ? el("span", { class: "badge ok" }, "vérifiée")
-      : el("span", { class: "badge alerte" }, "à corriger : " + v.problemes.join(" ; "));
-    b.append(el("div", { class: "ligne" },
-      el("div", {}, el("span", { class: "badge" }, p.projet), el("span", { class: "badge" }, p.type), " ", p.titre),
-      el("div", { class: "petit" }, `par ${p.acteur} · ${p.creee_le}`, p.raison ? ` · ${p.raison}` : ""),
-      badge, el("pre", {}, p.contenu),
-      el("button", { class: "ok", onclick: () => action(() => api("/api/proposition", { projet: p.projet, id: p.id, action: "valider" }), "Validée et écrite.") }, "Valider"),
-      el("button", { class: "non", onclick: () => action(() => api("/api/proposition", { projet: p.projet, id: p.id, action: "refuser" }), "Refusée. Rien n'a été écrit.") }, "Refuser")));
-  }
-}
-
-function afficherTaches(liste, projetsInfo) {
-  const b = corps("p-taches");
-  const titre = el("input", { placeholder: "Nouvelle tâche…" });
-  const ech = el("input", { type: "date" });
-  const sel = el("select", {}, projetsInfo.map(p => el("option", { value: p.nom }, p.nom)));
-  b.append(el("div", { class: "rangee" }, titre),
-    el("div", { class: "rangee" }, sel, ech, el("button", { onclick: () => {
-      if (!titre.value.trim()) return message("Écris d'abord le titre de la tâche.");
-      action(async () => { await api("/api/tache/nouvelle", { projet: sel.value, titre: titre.value, echeance: ech.value });
-        await api("/api/tour", {}); }, "Tâche ajoutée et planifiée.");
-    } }, "Ajouter")));
-  for (const t of liste.filter(t => t.statut !== "fait").slice(0, 30))
-    b.append(el("div", { class: "ligne" }, el("span", { class: "badge" }, t.projet), t.titre,
-      el("span", { class: "petit" }, ` · ${t.statut}`, t.echeance ? ` · échéance ${t.echeance}` : "", t.planifiee ? "" : " · pas encore planifiée")));
-}
-
-function afficherAgents(agents, modules) {
-  const b = corps("p-agents");
-  for (const a of agents)
-    b.append(el("div", { class: "ligne" }, el("b", {}, a.nom), el("span", { class: "petit" }, ` · voie ${a.voie} · ${a.actions} action(s)`),
-      el("div", { class: "petit" }, a.consigne), el("div", { class: "petit" }, "outils : " + a.outils.join(", "))));
-  for (const m of modules)
-    b.append(el("div", { class: "ligne" }, el("span", { class: "badge" }, "module"), m.nom,
-      el("span", { class: "petit" }, m.actif ? ` · actif (${m.mode})` : " · inactif")));
-}
-
-function afficherJournal(lignes) {
-  const b = corps("p-journal");
-  for (const l of lignes.slice(0, 40))
-    b.append(el("div", { class: "ligne" }, el("span", { class: "petit" }, `${l.date.slice(0, 16).replace("T", " ")} · ${l.projet} · ${l.acteur}`),
-      el("div", {}, l.evenement), l.raison ? el("div", { class: "petit" }, "raison : " + l.raison) : null));
-}
-
-// ---------- éditeur ----------
-async function afficherEditeur() {
-  const b = corps("p-editeur");
-  const projetsInfo = ETAT.projets;
-  if (!editeur.projet && projetsInfo.length) editeur.projet = projetsInfo[0].nom;
-  const sel = el("select", { onchange: e => { editeur.projet = e.target.value; editeur.note = null; afficherEditeur(); } },
-    projetsInfo.map(p => { const o = el("option", { value: p.nom }, p.nom + (p.sensible ? " (sensible)" : "")); if (p.nom === editeur.projet) o.selected = true; return o; }));
-  const nouveau = el("input", { placeholder: "Nom d'un nouveau projet" });
-  b.append(el("div", { class: "rangee" }, sel),
-    el("div", { class: "rangee" }, nouveau, el("button", { onclick: () => {
-      if (!nouveau.value.trim()) return message("Écris d'abord le nom du projet.");
-      editeur.projet = nouveau.value.trim();
-      action(() => api("/api/projet", { nom: nouveau.value }), "Projet créé.");
-    } }, "Créer")));
-  if (!editeur.projet) return;
-
-  const notes = await api(`/api/notes?projet=${encodeURIComponent(editeur.projet)}`);
-  b.append(el("div", { class: "petit" }, "Notes : ",
-    ...notes.map(n => el("span", {}, el("span", { class: "lien", onclick: () => ouvrirNote(editeur.projet, n.id) }, n.titre), " · ")),
-    el("span", { class: "lien", onclick: () => { editeur.note = null; afficherEditeur(); } }, "+ nouvelle note")));
-
-  const n = editeur.note;
-  const titre = el("input", { placeholder: "Titre de la note" });
-  const texte = el("textarea", { placeholder: "Écris ici. Pour relier une autre note : [[Titre de la note]]" });
-  const sensible = el("input", { type: "checkbox", style: "width:auto" });
-  if (n) { titre.value = n.titre; titre.disabled = true; texte.value = n.contenu; }
-  b.append(el("div", { class: "rangee" }, titre), texte,
-    n ? null : el("label", { class: "petit" }, sensible, " note sensible (ne part jamais vers une IA en ligne)"),
-    el("div", {}, el("button", { onclick: () => {
-      if (!n && !titre.value.trim()) return message("Donne un titre à la note.");
-      action(async () => {
-        const r = await api("/api/note", { projet: editeur.projet, id: n ? n.id : null, titre: titre.value, contenu: texte.value, sensible: sensible.checked });
-        editeur.note = await api(`/api/note?projet=${encodeURIComponent(editeur.projet)}&id=${r.id}`);
-      }, "Note enregistrée.");
-    } }, n ? "Enregistrer" : "Créer la note")));
-  if (n) {
-    const lienVers = x => x.id ? el("span", { class: "lien", onclick: () => ouvrirNote(editeur.projet, x.id) }, x.titre) : el("span", { class: "petit" }, x.titre + " (n'existe pas encore)");
-    b.append(el("div", { class: "petit" }, "Liens : ", ...(n.liens.length ? n.liens.map(x => el("span", {}, lienVers(x), " ")) : ["aucun"])),
-      el("div", { class: "petit" }, "Rétroliens : ", ...(n.retroliens.length ? n.retroliens.map(x => el("span", {}, lienVers(x), " ")) : ["aucun"])));
-  }
-}
-
-async function ouvrirNote(projet, id) {
-  editeur.projet = projet;
-  editeur.note = await api(`/api/note?projet=${encodeURIComponent(projet)}&id=${id}`);
-  await afficherEditeur();
-  document.getElementById("p-editeur").scrollIntoView({ behavior: "smooth" });
-}
-
-// ---------- cerveau 3D ----------
-const cerveau = { pret: false };
-
-function hasard(graine) {           // nombre pseudo-aléatoire stable (même dessin à chaque fois)
+// Hasard stable : le même projet donne toujours le même dessin.
+function hasard(graine) {
   let h = 2166136261;
   for (const c of graine) h = Math.imul(h ^ c.charCodeAt(0), 16777619);
   return () => { h = Math.imul(h ^ (h >>> 15), 2246822507); h = Math.imul(h ^ (h >>> 13), 3266489909); return ((h ^= h >>> 16) >>> 0) / 4294967296; };
 }
 
-function disposer(projet, centre) {  // petite simulation de ressorts pour placer les neurones
-  const r = hasard(projet.nom);
-  const pos = new Map(projet.notes.map(n => [n.id, [centre[0] + (r() - .5) * 6, centre[1] + (r() - .5) * 6, centre[2] + (r() - .5) * 6]]));
+// =====================================================================
+// Forme du cerveau : deux hémisphères (ellipsoïdes) séparés par une fissure
+// =====================================================================
+const H = { a: 4.4, b: 2.4, c: 6.0, ecart: 0.55 };   // demi-axes x, y (hauteur), z ; demi-fissure
+const centre = cote => [cote * (H.a + H.ecart), 0, 0]; // cote : -1 passif (gauche), +1 actif (droite)
+
+function dansEllipsoide(p, cote, marge = 0.78) {
+  const c = centre(cote);
+  const k = ((p[0] - c[0]) / (H.a * marge)) ** 2 + ((p[1] - c[1]) / (H.b * marge)) ** 2 + ((p[2] - c[2]) / (H.c * marge)) ** 2;
+  if (k > 1) { const s = 1 / Math.sqrt(k); for (let i = 0; i < 3; i++) p[i] = c[i] + (p[i] - c[i]) * s; }
+  // ne jamais franchir la fissure
+  if (cote < 0) p[0] = Math.min(p[0], -H.ecart - 0.6); else p[0] = Math.max(p[0], H.ecart + 0.6);
+}
+
+// Placement des neurones dans leur hémisphère (petite simulation de ressorts).
+function disposer(neurones, synapses, cote, graine) {
+  const r = hasard(graine), c = centre(cote), pos = new Map();
+  neurones.forEach(n => pos.set(n.id, [c[0] + (r() - .5) * H.a, c[1] + (r() - .5) * H.b, c[2] + (r() - .5) * H.c * 1.2]));
   const ids = [...pos.keys()];
-  for (let it = 0; it < 250; it++) {
+  for (let it = 0; it < 220; it++) {
     const f = new Map(ids.map(i => [i, [0, 0, 0]]));
-    for (let a = 0; a < ids.length; a++) for (let b = a + 1; b < ids.length; b++) {
-      const pa = pos.get(ids[a]), pb = pos.get(ids[b]);
-      const d = [pa[0] - pb[0], pa[1] - pb[1], pa[2] - pb[2]];
-      const l2 = Math.max(d[0] ** 2 + d[1] ** 2 + d[2] ** 2, .01), k = 4 / l2;
-      for (let x = 0; x < 3; x++) { f.get(ids[a])[x] += d[x] * k; f.get(ids[b])[x] -= d[x] * k; }
+    for (let i = 0; i < ids.length; i++) for (let j = i + 1; j < ids.length; j++) {
+      const A = pos.get(ids[i]), B = pos.get(ids[j]), d = [A[0] - B[0], A[1] - B[1], A[2] - B[2]];
+      const l2 = Math.max(d[0] ** 2 + d[1] ** 2 + d[2] ** 2, .05), k = 2.2 / l2;
+      for (let x = 0; x < 3; x++) { f.get(ids[i])[x] += d[x] * k; f.get(ids[j])[x] -= d[x] * k; }
     }
-    for (const s of projet.liens) {
-      const pa = pos.get(s.source), pb = pos.get(s.cible); if (!pa || !pb) continue;
-      for (let x = 0; x < 3; x++) { const d = (pb[x] - pa[x]) * (.04 + s.poids * .1); f.get(s.source)[x] += d; f.get(s.cible)[x] -= d; }
+    for (const s of synapses) {
+      const A = pos.get(s.a), B = pos.get(s.b); if (!A || !B) continue;
+      for (let x = 0; x < 3; x++) { const d = (B[x] - A[x]) * (.03 + s.poids * .08); f.get(s.a)[x] += d; f.get(s.b)[x] -= d; }
     }
     for (const i of ids) { const p = pos.get(i), g = f.get(i);
-      for (let x = 0; x < 3; x++) p[x] += Math.max(-.5, Math.min(.5, g[x] + (centre[x] - p[x]) * .02)); }
+      for (let x = 0; x < 3; x++) p[x] += Math.max(-.4, Math.min(.4, g[x] + (c[x] - p[x]) * .01));
+      dansEllipsoide(p, cote); }
   }
-  // Toute la région est mise à l'échelle pour tenir dans sa sphère (sans déformer le dessin).
-  const loin = Math.max(.01, ...[...pos.values()].map(p => Math.hypot(p[0] - centre[0], p[1] - centre[1], p[2] - centre[2])));
-  if (loin > 4.8) for (const p of pos.values()) for (let x = 0; x < 3; x++) p[x] = centre[x] + (p[x] - centre[x]) * 4.8 / loin;
   return pos;
 }
 
-async function initCerveau() {
-  const zone = document.getElementById("cerveau");
+// Le dessin complet d'un projet : positions communes à la 3D et à l'aperçu 2D.
+function plan(c) {
+  const passif = disposer(c.passif.neurones, c.passif.synapses, -1, c.projet + "|passif");
+  const actif = disposer(c.actif.neurones, c.actif.synapses, +1, c.projet + "|actif");
+  const ponts = c.ponts.filter(p => actif.has(p.actif) && passif.has(p.passif)).map(p => {
+    const z = (actif.get(p.actif)[2] + passif.get(p.passif)[2]) / 2;
+    return { ...p, z: Math.max(-H.c * .7, Math.min(H.c * .7, z)) };
+  });
+  return { passif, actif, ponts };
+}
+
+// =====================================================================
+// Cerveau 3D (Three.js)
+// =====================================================================
+const scene3d = { pret: false };
+
+async function initialiser3D() {
+  const zone = document.getElementById("scene");
   try {
     const THREE = await import("three");
     const { OrbitControls } = await import("three/addons/controls/OrbitControls.js");
-    const rendu = new THREE.WebGLRenderer({ antialias: true });
+    const rendu = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     rendu.setPixelRatio(Math.min(devicePixelRatio, 2));
+    rendu.setClearColor(C.fond, 1);
     zone.prepend(rendu.domElement);
-    const scene = new THREE.Scene(); scene.background = new THREE.Color(0x000000);
-    const camera = new THREE.PerspectiveCamera(55, 1, .1, 500); camera.position.set(0, 8, 34);
+    const scene = new THREE.Scene();
+    scene.fog = new THREE.Fog(C.fond, 34, 70);
+    const camera = new THREE.PerspectiveCamera(42, 1, .1, 200);
+    camera.position.set(0, 27, 9);               // vue de dessus, légèrement inclinée
     const ctrl = new OrbitControls(camera, rendu.domElement);
-    ctrl.enableDamping = true; ctrl.autoRotate = true; ctrl.autoRotateSpeed = .6;
-    scene.add(new THREE.AmbientLight(0xffffff, .7));
-    const lum = new THREE.PointLight(0x8cc8ff, 40, 0); lum.position.set(10, 20, 20); scene.add(lum);
-    const groupe = new THREE.Group(); scene.add(groupe);
-    const taille = () => { const w = zone.clientWidth, h = zone.clientHeight; rendu.setSize(w, h); camera.aspect = w / h; camera.updateProjectionMatrix(); };
+    ctrl.enablePan = false; ctrl.enableDamping = true; ctrl.minDistance = 14; ctrl.maxDistance = 48;
+    ctrl.maxPolarAngle = Math.PI * 0.42;
+    const cerveau = new THREE.Group(); scene.add(cerveau);
+    const contenu = new THREE.Group(); cerveau.add(contenu);
+    construireForme(THREE, cerveau);
+    const taille = () => {
+      const w = zone.clientWidth, h = zone.clientHeight;
+      rendu.setSize(w, h); camera.aspect = w / h;
+      camera.position.setLength(w / h < 0.9 ? 40 : 29); camera.updateProjectionMatrix(); dessinerCercles();
+    };
     addEventListener("resize", taille); taille();
-    const ray = new THREE.Raycaster(), souris = new THREE.Vector2();
-    let depart = null;
-    rendu.domElement.addEventListener("pointerdown", e => depart = [e.clientX, e.clientY]);
+
+    // Clic sur un neurone : bulle d'information (titre et liens, jamais le contenu).
+    const ray = new THREE.Raycaster(), souris = new THREE.Vector2(); let depart = null;
+    rendu.domElement.addEventListener("pointerdown", e => (depart = [e.clientX, e.clientY]));
     rendu.domElement.addEventListener("pointerup", e => {
-      if (!depart || Math.hypot(e.clientX - depart[0], e.clientY - depart[1]) > 5) return;
+      if (!depart || Math.hypot(e.clientX - depart[0], e.clientY - depart[1]) > 6) return;
       const b = rendu.domElement.getBoundingClientRect();
       souris.set(((e.clientX - b.left) / b.width) * 2 - 1, -((e.clientY - b.top) / b.height) * 2 + 1);
       ray.setFromCamera(souris, camera);
-      const touche = ray.intersectObjects(groupe.children).find(i => i.object.userData.note);
-      if (touche) { const u = touche.object.userData; ouvrirNote(u.projet, u.note); }
+      const t = ray.intersectObjects(contenu.children).find(i => i.object.userData.neurone);
+      afficherBulle(t ? t.object.userData.neurone : null);
     });
-    (function boucle() { requestAnimationFrame(boucle); ctrl.update(); rendu.render(scene, camera); })();
-    Object.assign(cerveau, { THREE, groupe, camera, pret: true });
+
+    const horloge = new THREE.Clock();
+    (function boucle() {
+      requestAnimationFrame(boucle);
+      const t = horloge.getElapsedTime();
+      cerveau.rotation.y = Math.sin(t * .25) * .10;   // léger balancement
+      cerveau.rotation.z = Math.sin(t * .18) * .025;
+      for (const a of contenu.children) if (a.userData.anneau) a.material.opacity = .55 + .35 * Math.sin(t * 2.4);
+      ctrl.update(); rendu.render(scene, camera);
+    })();
+    Object.assign(scene3d, { THREE, contenu, camera, pret: true });
   } catch (e) {
-    zone.append(el("div", { class: "secours" }, "Le cerveau 3D a besoin d'Internet pour charger Three.js (la bibliothèque 3D). Le reste du cockpit fonctionne normalement."));
+    console.warn("3D indisponible :", e);
+    document.getElementById("secours").style.display = "flex";
   }
 }
 
-function etiquette(THREE, texte, couleur, taille = .9) {
-  const c = document.createElement("canvas"), ctx = c.getContext("2d");
-  ctx.font = "28px Menlo, monospace";
-  c.width = Math.ceil(ctx.measureText(texte).width) + 16; c.height = 40;
-  ctx.font = "28px Menlo, monospace"; ctx.fillStyle = couleur; ctx.fillText(texte, 8, 29);
-  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), transparent: true, depthWrite: false }));
-  s.scale.set(c.width / c.height * taille, taille, 1);
+function texteSprite(THREE, texte, couleur, police, hauteur) {
+  const c = document.createElement("canvas"), x = c.getContext("2d");
+  x.font = police; const w = Math.ceil(x.measureText(texte).width) + 12;
+  c.width = w; c.height = 44; x.font = police; x.fillStyle = couleur; x.textBaseline = "middle"; x.fillText(texte, 6, 22);
+  const tex = new THREE.CanvasTexture(c); tex.anisotropy = 4;
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false }));
+  s.scale.set(hauteur * w / 44, hauteur, 1);
   return s;
 }
 
-function dessinerCerveau(g) {
-  if (!cerveau.pret) return;
-  const { THREE, groupe } = cerveau;
-  groupe.children.slice().forEach(o => { groupe.remove(o); o.geometry?.dispose(); o.material?.map?.dispose(); o.material?.dispose(); });
-  const n = g.projets.length, R = n > 1 ? 9 + n * 2.5 : 0;
-  cerveau.camera.position.setLength(Math.max(26, R * 1.9 + 16));
-  g.projets.forEach((p, i) => {
-    const a = (i / Math.max(n, 1)) * Math.PI * 2;
-    const centre = [Math.cos(a) * R, 0, Math.sin(a) * R];
-    const pos = disposer(p, centre);
-    const nom = etiquette(THREE, p.nom, "#3aa0ff", 1.3);
-    nom.position.set(centre[0], centre[1] + 6.5, centre[2]); groupe.add(nom);
-    const halo = new THREE.Mesh(new THREE.SphereGeometry(5.8, 24, 16),
-      new THREE.MeshBasicMaterial({ color: 0x3aa0ff, wireframe: true, transparent: true, opacity: .05 }));
-    halo.position.set(...centre); groupe.add(halo);
-    for (const s of p.liens) {
-      const A = pos.get(s.source), B = pos.get(s.cible); if (!A || !B) continue;
-      const va = new THREE.Vector3(...A), vb = new THREE.Vector3(...B), long = va.distanceTo(vb);
-      const tube = new THREE.Mesh(new THREE.CylinderGeometry(.02 + s.poids * .22, .02 + s.poids * .22, long, 6),
-        new THREE.MeshBasicMaterial({ color: 0x3aa0ff, transparent: true, opacity: .25 + s.poids * .7 }));
-      tube.position.copy(va).add(vb).multiplyScalar(.5);
-      tube.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), vb.clone().sub(va).normalize());
-      groupe.add(tube);
-    }
-    for (const note of p.notes) {
-      const P = pos.get(note.id);
-      const boule = new THREE.Mesh(new THREE.SphereGeometry(note.validee ? .38 : .28, 16, 12),
-        new THREE.MeshStandardMaterial({ color: note.validee ? 0xe8f3ff : 0x3a6ea0, emissive: note.validee ? 0x1d4f80 : 0x0a1a2a }));
-      boule.position.set(...P); boule.userData = { projet: p.nom, note: note.id };
-      groupe.add(boule);
-      const t = etiquette(THREE, note.titre, "#cfe6ff", .55); t.position.set(P[0], P[1] + .75, P[2]); groupe.add(t);
-    }
-  });
+let texHalo = null;
+function halo(THREE) {
+  if (texHalo) return texHalo;
+  const c = document.createElement("canvas"); c.width = c.height = 64;
+  const x = c.getContext("2d"), g = x.createRadialGradient(32, 32, 0, 32, 32, 32);
+  g.addColorStop(0, "rgba(255,255,255,1)"); g.addColorStop(.25, "rgba(255,255,255,.55)"); g.addColorStop(1, "rgba(255,255,255,0)");
+  x.fillStyle = g; x.fillRect(0, 0, 64, 64);
+  return (texHalo = new THREE.CanvasTexture(c));
 }
 
-// ---------- chargement ----------
+// La forme fixe : contours fins, nuage organique, fissure, étiquettes, ponts de base.
+function construireForme(THREE, groupe) {
+  for (const cote of [-1, 1]) {
+    const c = centre(cote), coul = cote < 0 ? C.cyan : C.blanc, r = hasard("forme" + cote);
+    // Contour fin, légèrement irrégulier (organique), vu de dessus.
+    const pts = [];
+    for (let i = 0; i <= 160; i++) {
+      const t = i / 160 * Math.PI * 2, bruit = 1 + .035 * Math.sin(t * 5 + cote) + .02 * Math.sin(t * 11);
+      let x = Math.cos(t) * H.a * bruit, z = Math.sin(t) * H.c * bruit;
+      if (cote * x < 0) x *= .82;                       // côté fissure plus droit
+      pts.push(new THREE.Vector3(c[0] + x, 0, c[2] + z));
+    }
+    groupe.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),
+      new THREE.LineBasicMaterial({ color: coul, transparent: true, opacity: .55 })));
+    // Nuage organique sur une sphère organique : points semés près de la surface.
+    const nuage = [];
+    for (let i = 0; i < 900; i++) {
+      const u = r() * 2 - 1, th = r() * Math.PI * 2, s = Math.sqrt(1 - u * u), d = .82 + r() * .2;
+      let x = s * Math.cos(th) * H.a * d, y = u * H.b * d, z = s * Math.sin(th) * H.c * d;
+      if (cote * x < 0) x *= .82;
+      nuage.push(c[0] + x, c[1] + Math.abs(y) * .9, c[2] + z);
+    }
+    const geo = new THREE.BufferGeometry(); geo.setAttribute("position", new THREE.Float32BufferAttribute(nuage, 3));
+    groupe.add(new THREE.Points(geo, new THREE.PointsMaterial({ color: coul, size: .05, transparent: true, opacity: .32, depthWrite: false })));
+    const titre = texteSprite(THREE, cote < 0 ? "PASSIF · MÉMOIRE" : "ACTIF · ACTION", cote < 0 ? CSS.cyan : CSS.blanc,
+      "600 30px Rajdhani, sans-serif", .95);
+    titre.position.set(c[0], 1.2, -H.c - .9); groupe.add(titre);
+  }
+  // Fissure médiane : fine ligne en pointillés.
+  const f = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 0, -H.c - .4), new THREE.Vector3(0, 0, H.c + .4)]),
+    new THREE.LineDashedMaterial({ color: C.gris, dashSize: .25, gapSize: .2, transparent: true, opacity: .45 }));
+  f.computeLineDistances(); groupe.add(f);
+  const cc = texteSprite(THREE, "corps calleux", CSS.gris, "500 22px 'JetBrains Mono', monospace", .5);
+  cc.position.set(0, .9, H.c + .9); groupe.add(cc);
+}
+
+function dessinerCerveau(c, p) {
+  if (!scene3d.pret) return;
+  const { THREE, contenu } = scene3d;
+  contenu.children.slice().forEach(o => { contenu.remove(o); o.geometry?.dispose?.(); o.material?.map?.dispose?.(); o.material?.dispose?.(); });
+
+  const synapse = (A, B, poids, coul) => {
+    const va = new THREE.Vector3(...A), vb = new THREE.Vector3(...B), l = va.distanceTo(vb);
+    const r = .012 + poids * .085;
+    const m = new THREE.Mesh(new THREE.CylinderGeometry(r, r, l, 6, 1, true),
+      new THREE.MeshBasicMaterial({ color: coul, transparent: true, opacity: .14 + poids * .78, depthWrite: false }));
+    m.position.copy(va).add(vb).multiplyScalar(.5);
+    m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), vb.clone().sub(va).normalize());
+    contenu.add(m);
+  };
+  for (const s of c.passif.synapses) if (p.passif.has(s.a) && p.passif.has(s.b)) synapse(p.passif.get(s.a), p.passif.get(s.b), s.poids, C.cyan);
+  for (const s of c.actif.synapses) if (p.actif.has(s.a) && p.actif.has(s.b)) synapse(p.actif.get(s.a), p.actif.get(s.b), s.poids, C.blanc);
+
+  // Corps calleux : ponts blancs courts qui traversent la fissure (+ un fil discret vers chaque neurone).
+  for (const pt of p.ponts) {
+    const g = H.ecart + .45;
+    synapse([-g, .15, pt.z], [g, .15, pt.z], .55, C.blanc);
+    for (const [cote, P] of [[-1, p.passif.get(pt.passif)], [1, p.actif.get(pt.actif)]]) {
+      const l = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(cote * g, .15, pt.z), new THREE.Vector3(...P)]),
+        new THREE.LineDashedMaterial({ color: C.blanc, dashSize: .12, gapSize: .14, transparent: true, opacity: .22 }));
+      l.computeLineDistances(); contenu.add(l);
+    }
+  }
+
+  const neurone = (n, P, coul, taille, opacite) => {
+    const coeur = new THREE.Mesh(new THREE.SphereGeometry(taille, 14, 10), new THREE.MeshBasicMaterial({ color: coul, transparent: true, opacity: opacite }));
+    coeur.position.set(...P); coeur.userData.neurone = n; contenu.add(coeur);
+    const h = new THREE.Sprite(new THREE.SpriteMaterial({ map: halo(THREE), color: coul, transparent: true, opacity: .75 * opacite, depthWrite: false, blending: THREE.AdditiveBlending }));
+    h.scale.setScalar(taille * 7); h.position.set(...P); contenu.add(h);
+    const t = texteSprite(THREE, n.titre.length > 26 ? n.titre.slice(0, 25) + "…" : n.titre, "#cfe8f5", "400 20px 'JetBrains Mono', monospace", .36);
+    t.position.set(P[0], P[1] + .55, P[2]); t.material.opacity = .85; contenu.add(t);
+  };
+  for (const n of c.passif.neurones) neurone({ ...n, hemisphere: "passif" }, p.passif.get(n.id), C.cyan, n.validee ? .17 : .12, n.validee ? 1 : .55);
+  for (const n of c.actif.neurones) {
+    const P = p.actif.get(n.id);
+    if (n.type === "proposition") {
+      neurone({ ...n, hemisphere: "actif" }, P, C.ambre, .17, 1);
+      const anneau = new THREE.Mesh(new THREE.RingGeometry(.36, .42, 40),
+        new THREE.MeshBasicMaterial({ color: C.ambre, transparent: true, opacity: .8, side: THREE.DoubleSide, depthWrite: false }));
+      anneau.position.set(...P); anneau.rotation.x = -Math.PI / 2; anneau.userData.anneau = true; contenu.add(anneau);
+    } else {
+      neurone({ ...n, hemisphere: "actif" }, P, C.blanc, n.type === "agent" ? .15 : .13, n.type === "agent" ? .95 : .8);
+    }
+  }
+}
+
+// Cercles concentriques en pointillés (SVG, derrière le cerveau).
+function dessinerCercles() {
+  const svg = document.getElementById("cercles"), b = svg.getBoundingClientRect();
+  const cx = b.width / 2, cy = b.height / 2, r0 = Math.min(b.width, b.height) * .5;
+  svg.innerHTML = [.46, .62, .78, .94].map((k, i) =>
+    `<circle cx="${cx}" cy="${cy}" r="${r0 * k}" fill="none" stroke="#5CE1FF" stroke-opacity="${.16 - i * .03}" stroke-width="1" stroke-dasharray="${i % 2 ? "2 7" : "1 4"}"/>`).join("")
+    + `<line x1="${cx - r0 * .98}" y1="${cy}" x2="${cx - r0 * .9}" y2="${cy}" stroke="#5CE1FF" stroke-opacity=".35"/>`
+    + `<line x1="${cx + r0 * .9}" y1="${cy}" x2="${cx + r0 * .98}" y2="${cy}" stroke="#5CE1FF" stroke-opacity=".35"/>`;
+}
+
+function afficherBulle(n) {
+  const b = document.getElementById("bulle");
+  if (!n) { b.style.display = "none"; return; }
+  const c = ETAT.cerveau, liens = [];
+  const titre = id => [...c.passif.neurones, ...c.actif.neurones].find(x => x.id === id)?.titre || id;
+  for (const s of [...c.passif.synapses, ...c.actif.synapses]) {
+    if (s.a === n.id) liens.push(`${titre(s.b)} (${s.poids.toFixed(2)})`);
+    if (s.b === n.id) liens.push(`${titre(s.a)} (${s.poids.toFixed(2)})`);
+  }
+  for (const p of c.ponts) { if (p.actif === n.id) liens.push("↔ " + titre(p.passif)); if (p.passif === n.id) liens.push("↔ " + titre(p.actif)); }
+  const genre = n.hemisphere === "passif" ? (n.validee ? "note validée" : "note non validée")
+    : n.type === "agent" ? `agent · voie ${n.voie}` : n.type === "tache" ? `tâche · ${n.statut}` : "proposition en attente";
+  b.replaceChildren(el("h2", {}, n.titre), el("div", { class: "petit" }, `${n.hemisphere} · ${genre}`),
+    el("div", { class: "petit", style: "margin-top:6px" }, liens.length ? "liens : " + liens.join(" · ") : "aucun lien"),
+    n.type === "proposition" ? el("code", { class: "cmd" }, `python3 -m noyau.valider "${ETAT.projet}:${n.proposition}"`) : null,
+    el("button", { class: "bouton discret", style: "margin-top:8px", onclick: () => afficherBulle(null) }, "Fermer"));
+  if (n.type === "proposition") b.classList.add("alerte"); else b.classList.remove("alerte");
+  b.style.display = "block";
+}
+
+// =====================================================================
+// Aperçu 2D (vue de dessus, mêmes positions que la 3D)
+// =====================================================================
+function dessinerApercu(c, p) {
+  const cv = document.getElementById("apercu"), dpr = Math.min(devicePixelRatio, 2);
+  const w = cv.clientWidth, h = cv.clientHeight; cv.width = w * dpr; cv.height = h * dpr;
+  const x = cv.getContext("2d"); x.scale(dpr, dpr); x.clearRect(0, 0, w, h);
+  const ech = Math.min(w / (4 * H.a + 4 * H.ecart + 1), h / (2 * H.c + 1));
+  const X = v => w / 2 + v * ech, Y = v => h / 2 + v * ech;
+  x.lineWidth = 1;
+  for (const cote of [-1, 1]) {
+    x.strokeStyle = cote < 0 ? "rgba(92,225,255,.5)" : "rgba(230,247,255,.4)";
+    x.beginPath(); x.ellipse(X(centre(cote)[0]), Y(0), H.a * ech * .95, H.c * ech, 0, 0, Math.PI * 2); x.stroke();
+  }
+  x.setLineDash([3, 3]); x.strokeStyle = "rgba(134,169,188,.5)"; x.beginPath(); x.moveTo(X(0), Y(-H.c)); x.lineTo(X(0), Y(H.c)); x.stroke(); x.setLineDash([]);
+  const trait = (A, B, poids, coul) => { x.strokeStyle = coul.replace("A", (.15 + poids * .8).toFixed(2)); x.lineWidth = .5 + poids * 2.2; x.beginPath(); x.moveTo(X(A[0]), Y(A[2])); x.lineTo(X(B[0]), Y(B[2])); x.stroke(); };
+  for (const s of c.passif.synapses) if (p.passif.has(s.a) && p.passif.has(s.b)) trait(p.passif.get(s.a), p.passif.get(s.b), s.poids, "rgba(92,225,255,A)");
+  for (const s of c.actif.synapses) if (p.actif.has(s.a) && p.actif.has(s.b)) trait(p.actif.get(s.a), p.actif.get(s.b), s.poids, "rgba(230,247,255,A)");
+  for (const pt of p.ponts) trait([-H.ecart - .45, 0, pt.z], [H.ecart + .45, 0, pt.z], .6, "rgba(230,247,255,A)");
+  const point = (P, coul, r) => { x.fillStyle = coul; x.shadowColor = coul; x.shadowBlur = 6; x.beginPath(); x.arc(X(P[0]), Y(P[2]), r, 0, Math.PI * 2); x.fill(); x.shadowBlur = 0; };
+  for (const n of c.passif.neurones) point(p.passif.get(n.id), CSS.cyan, n.validee ? 2.6 : 1.8);
+  for (const n of c.actif.neurones) {
+    const P = p.actif.get(n.id);
+    if (n.type === "proposition") { point(P, CSS.ambre, 2.6); x.strokeStyle = CSS.ambre; x.lineWidth = 1; x.beginPath(); x.arc(X(P[0]), Y(P[2]), 5.5, 0, Math.PI * 2); x.stroke(); }
+    else point(P, CSS.blanc, 2.2);
+  }
+}
+
+// =====================================================================
+// Panneaux du cockpit
+// =====================================================================
+let ETAT = { projet: null };
+const VOIES = [["planifier", "Planifier"], ["proposer", "Proposer"], ["comparer", "Comparer"], ["verifier", "Vérifier"]];
+
+function afficherOnglets(liste) {
+  const nav = document.getElementById("onglets"); nav.replaceChildren();
+  for (const p of liste) nav.append(el("button", { role: "tab", "aria-selected": String(p.nom === ETAT.projet),
+    onclick: () => { ETAT.projet = p.nom; try { localStorage.setItem("jarvis-projet", p.nom); } catch (e) {} afficherBulle(null); rafraichir(); } },
+    p.nom + (p.sensible ? " · sensible" : "")));
+}
+
+function afficherOrdre(c) {
+  const b = corps("p-ordre");
+  if (!c) { b.append(el("div", { class: "vide" }, "Rien à faire pour l'instant dans ce projet."),
+    el("button", { class: "bouton discret", style: "margin-top:8px", onclick: () => action(() => api("/api/tour", {}), "Tour de l'orchestrateur terminé.") }, "Lancer un tour"));
+    return; }
+  const champ = (nom, ...v) => el("div", { class: "champ" }, el("span", {}, nom), el("span", {}, ...v));
+  b.append(champ("QUOI", el("b", {}, c.quoi)), champ("POURQUOI", c.pourquoi),
+    champ("OÙ", c.ou ? el("span", { class: "lien", onclick: () => ouvrirNote(c.ou.note_id) }, c.ou.titre) : el("span", { class: "vide" }, "—")),
+    champ("COMMENT", el("div", {}, el("ol", {}, c.comment.map(e => el("li", {}, `${e.etape} · ${e.duree_min} min`))),
+      el("span", { class: "petit" }, `${c.duree_totale_min} min au total`))),
+    champ("FIN", el("span", { class: "rangee" },
+      el("button", { class: "bouton", onclick: () => action(() => api("/api/tache", { projet: c.projet, id: c.tache_id, fait: true }), "Bravo. " + c.apres) }, "Fait"),
+      el("button", { class: "bouton discret", onclick: () => action(() => api("/api/tache", { projet: c.projet, id: c.tache_id, fait: false }), "Noté, on y reviendra.") }, "Pas fait"))),
+    champ("APRÈS", c.apres));
+}
+
+function afficherPropositions(liste) {
+  const p = document.getElementById("p-propositions"), b = corps("p-propositions");
+  const h2 = p.querySelector("h2"); h2.querySelector(".compte")?.remove();
+  p.classList.toggle("alerte", liste.length > 0);
+  if (!liste.length) { b.append(el("div", { class: "vide" }, "Aucune proposition en attente. Rien n'est écrit sans ta validation.")); return; }
+  h2.append(el("span", { class: "compte" }, liste.length));
+  for (const x of liste) {
+    const v = x.verification;
+    b.append(el("div", { class: "proposition" },
+      el("div", {}, el("span", { class: "etiquette action" }, x.type), el("b", {}, x.titre)),
+      el("div", { class: "petit" }, `par ${x.acteur}`, x.raison ? ` · ${x.raison.replace(/^tri:\w+:[\d,]+ · /, "")}` : ""),
+      !v ? el("span", { class: "etiquette" }, "non vérifiée") : v.ok ? el("span", { class: "etiquette ok" }, "vérifiée")
+        : el("span", { class: "etiquette action" }, "à corriger : " + v.problemes.join(" ; ")),
+      el("pre", {}, x.contenu),
+      el("code", { class: "cmd", title: "Commande à taper dans le Terminal" }, `python3 -m noyau.valider "${x.projet}:${x.id}"`),
+      el("div", { class: "rangee" },
+        el("button", { class: "bouton action", onclick: () => action(() => api("/api/proposition", { projet: x.projet, id: x.id, action: "valider" }), "Validée et écrite.") }, "Valider"),
+        el("button", { class: "bouton discret", onclick: () => action(() => api("/api/proposition", { projet: x.projet, id: x.id, action: "refuser" }), "Refusée : rien n'a été écrit.") }, "Refuser"))));
+  }
+}
+
+function afficherReve(idees) {
+  const b = corps("p-reve");
+  if (!idees.length) { b.append(el("div", { class: "vide" }, "Pas encore d'idée : elles naissent pendant le sommeil (python3 jarvis.py dormir).")); return; }
+  for (const r of idees) {
+    b.append(el("div", { class: "ligne" }, el("div", {}, el("span", { class: "etiquette " + (r.statut === "nouvelle" ? "action" : "ok") }, r.statut), `score ${r.score}/10 · nuit du ${r.date}`),
+      el("div", { style: "margin:6px 0" }, r.idee), el("div", { class: "petit" }, "notes sources : " + r.sources_titres.join(", ")),
+      r.raison ? el("div", { class: "petit" }, (r.statut === "nouvelle" ? "pourquoi : " : "ta raison : ") + r.raison) : null,
+      r.statut === "nouvelle" ? el("div", { class: "rangee" },
+        el("button", { class: "bouton", onclick: () => action(() => api("/api/reve", { projet: ETAT.projet, id: r.id, decision: "garder" }), "Idée gardée : ses notes se renforcent.") }, "Garder"),
+        el("button", { class: "bouton discret", onclick: () => { const raison = prompt("Pourquoi la rejeter ? (rappelé au prochain rêve)") || ""; action(() => api("/api/reve", { projet: ETAT.projet, id: r.id, decision: "rejeter", raison }), "Idée rejetée."); } }, "Rejeter")) : null));
+  }
+}
+
+function afficherAgents(agents) {
+  const b = corps("p-agents"), grille = el("div", { class: "voies" });
+  for (const [cle, nom] of VOIES) grille.append(el("div", { class: "voie" }, el("h3", {}, nom),
+    ...agents.filter(a => a.voie === cle).map(a => el("div", { title: a.consigne }, a.nom, el("span", { class: "petit" }, ` · ${a.actions}`)))));
+  b.append(grille, el("div", { class: "petit", style: "margin-top:6px" }, "chiffre = actions au journal"));
+}
+
+function afficherJournal(lignes) {
+  const b = corps("p-journal");
+  for (const l of lignes.slice(0, 30)) b.append(el("div", { class: "ligne" },
+    el("div", { class: "petit" }, `${l.date.slice(0, 16).replace("T", " ")} · ${l.acteur}`), el("div", {}, l.evenement),
+    l.raison ? el("div", { class: "petit" }, l.raison) : null));
+}
+
+// Notes : liste et petit éditeur (le contenu n'apparaît jamais dans le graphe).
+let noteOuverte = null;
+async function afficherNotes() {
+  const b = corps("p-notes");
+  const notes = await api(`/api/notes?projet=${enc(ETAT.projet)}`);
+  b.append(el("div", { class: "petit" }, ...notes.map(n => el("span", {}, el("span", { class: "lien", onclick: () => ouvrirNote(n.id) }, n.titre), "  ")),
+    el("span", { class: "lien", onclick: () => { noteOuverte = null; afficherNotes(); } }, "+ nouvelle note")));
+  const titre = el("input", { placeholder: "Titre" }), texte = el("textarea", { placeholder: "Texte. Pour relier une note : [[Titre de la note]]" });
+  if (noteOuverte) { titre.value = noteOuverte.titre; titre.disabled = true; texte.value = noteOuverte.contenu; }
+  b.append(el("div", { class: "rangee" }, titre), texte, el("div", { class: "rangee" },
+    el("button", { class: "bouton", onclick: () => {
+      if (!noteOuverte && !titre.value.trim()) return message("Donne un titre à la note.");
+      action(async () => { const r = await api("/api/note", { projet: ETAT.projet, id: noteOuverte?.id || null, titre: titre.value, contenu: texte.value });
+        noteOuverte = await api(`/api/note?projet=${enc(ETAT.projet)}&id=${r.id}`); }, "Note enregistrée (écrite par toi : validée).");
+    } }, noteOuverte ? "Enregistrer" : "Créer la note"),
+    noteOuverte ? el("span", { class: "petit" }, "rétroliens : " + (noteOuverte.retroliens.map(x => x.titre).join(", ") || "aucun")) : null));
+}
+async function ouvrirNote(id) {
+  noteOuverte = await api(`/api/note?projet=${enc(ETAT.projet)}&id=${id}`);
+  await afficherNotes(); document.getElementById("p-notes").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+// =====================================================================
+// Chargement
+// =====================================================================
 async function rafraichir() {
-  const [etat, g] = await Promise.all([api("/api/etat"), api("/api/graphe")]);
-  ETAT = etat;
-  const nbNotes = etat.projets.reduce((s, p) => s + p.notes, 0);
-  document.getElementById("resume").replaceChildren("projets ", el("b", {}, etat.projets.length),
-    " · notes ", el("b", {}, nbNotes), " · propositions ", el("b", {}, etat.propositions.length));
-  document.getElementById("budget").replaceChildren("budget IA ", el("b", {}, `${etat.budget.depense.toFixed(2)} € / ${etat.budget.plafond} €`), " ce mois");
-  afficherMaintenant(etat.maintenant);
-  afficherPropositions(etat.propositions);
-  afficherTaches(etat.taches, etat.projets);
-  afficherAgents(etat.agents, etat.modules);
-  afficherJournal(etat.journal);
-  await afficherEditeur();
-  dessinerCerveau(g);
+  const tous = await api("/api/etat");
+  if (!tous.projets.length) { document.getElementById("nom-projet").textContent = "Aucun projet"; return; }
+  if (!ETAT.projet || !tous.projets.some(p => p.nom === ETAT.projet)) {
+    let memo = null; try { memo = localStorage.getItem("jarvis-projet"); } catch (e) {}
+    ETAT.projet = tous.projets.some(p => p.nom === memo) ? memo : tous.projets[0].nom;
+  }
+  const [etat, cerveau, idees] = await Promise.all([api(`/api/etat?projet=${enc(ETAT.projet)}`),
+    api(`/api/cerveau?projet=${enc(ETAT.projet)}`), api(`/api/reve?projet=${enc(ETAT.projet)}`)]);
+  Object.assign(ETAT, { etat, cerveau });
+  const info = etat.projets.find(p => p.nom === ETAT.projet);
+  afficherOnglets(etat.projets);
+  document.getElementById("nom-projet").textContent = ETAT.projet;
+  document.getElementById("resume-scene").textContent =
+    `${cerveau.passif.neurones.length} notes · ${cerveau.passif.synapses.length} synapses · ${cerveau.ponts.length} ponts` + (info.demo ? " · démo" : "") + (info.sensible ? " · sensible" : "");
+  document.getElementById("mode").textContent = etat.mode_ia === "reel" ? "réelle" : "simulée";
+  document.getElementById("budget").textContent = `${etat.budget.depense.toFixed(2)} € / ${etat.budget.plafond} € ce mois`;
+  const nuit = document.getElementById("nuit");
+  nuit.disabled = !info.demo; nuit.title = info.demo ? "Oubli 0,02 · apprentissage 0,10 · archivage sous 0,05" : "Réservé aux projets de démonstration";
+  const p = plan(cerveau);
+  dessinerCerveau(cerveau, p); dessinerApercu(cerveau, p);
+  afficherOrdre(etat.maintenant); afficherPropositions(etat.propositions); afficherReve(idees);
+  afficherAgents(etat.agents); afficherJournal(etat.journal); await afficherNotes();
 }
 
-await initCerveau();
+document.getElementById("nuit").addEventListener("click", () => action(async () => {
+  const r = await api("/api/nuit", { projet: ETAT.projet });
+  message(`Nuit du ${r.nuit} simulée : ${r.renforcees} lien(s) renforcé(s), ${r.archivees} archivé(s).`);
+}));
+addEventListener("resize", () => { if (ETAT.cerveau) dessinerApercu(ETAT.cerveau, plan(ETAT.cerveau)); });
+
+try { await document.fonts.ready; } catch (e) {}
+await initialiser3D();
+dessinerCercles();
 rafraichir().catch(e => message("Erreur : " + e.message));
 </script>
 </body>
