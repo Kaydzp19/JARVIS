@@ -413,3 +413,12 @@ def retroliens(projet, note_id, racine=None):
     return sorted({titres[s["note_source"]]
                    for s in synapses.lister_synapses(projet, racine)
                    if s["note_cible"] == note_id and s["note_source"] in titres})
+
+
+# ==================================================================
+# Lancement du serveur MCP : python3 -m noyau.corps_calleux
+# ==================================================================
+
+if __name__ == "__main__":
+    from noyau import serveur_mcp
+    serveur_mcp.servir()

@@ -85,5 +85,8 @@ class TestModules(TestTemporaire):
         for fichier in (RACINE_DEPOT / "noyau").glob("*.py"):
             if fichier.name.startswith("test_"):
                 continue
-            self.assertNotIn("notifications", fichier.read_text(encoding="utf-8"),
-                             f"{fichier.name} dépend d'un module")
+            texte = fichier.read_text(encoding="utf-8")
+            # Une vraie dépendance : le nom du module comme chaîne exacte, un chemin ou un import.
+            for signe in ('"notifications"', "'notifications'", "modules/notifications",
+                          "modules.notifications", "import notifications"):
+                self.assertNotIn(signe, texte, f"{fichier.name} dépend d'un module")
