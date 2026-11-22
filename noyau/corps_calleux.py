@@ -66,8 +66,8 @@ def _extrait(texte, mots, taille=240):
 def se_souvenir(projet, requete="", limite=5, racine=None, masquer_sensibles=False):
     """
     Renvoie les notes pertinentes du projet : [{id, titre, extrait, poids,
-    pertinence, sensible, validee}], triées par pertinence puis par force
-    des synapses. « poids » = somme des poids des synapses actives de la note.
+    pertinence, sensible, validee}], triées par pertinence (recherche plein
+    texte FTS5) puis par force des synapses. « poids » = somme des poids des synapses actives de la note.
     Si aucun mot de la requête ne correspond, renvoie les notes les plus
     reliées (utile pour « que sais-tu du projet A ? »).
     masquer_sensibles=True cache le texte des notes sensibles (utilisé quand
@@ -76,6 +76,9 @@ def se_souvenir(projet, requete="", limite=5, racine=None, masquer_sensibles=Fal
     limite = max(1, min(int(limite or 5), 50))
     mots = mots_cles(requete or "")
     notes = projets.lister_notes(projet, racine)
+    # Recherche plein texte FTS5 (titres et contenus, sans accents), si disponible.
+    fts = projets.rechercher(projet, requete, 50, racine) if mots else []
+    scores_fts = {r["id"]: r["score"] for r in fts} if fts is not None else None
     forces = {}
     for s in synapses.lister_synapses(projet, racine, avec_archivees=False):
         for nid in (s["note_source"], s["note_cible"]):
@@ -84,14 +87,17 @@ def se_souvenir(projet, requete="", limite=5, racine=None, masquer_sensibles=Fal
     resultats = []
     for n in notes:
         texte = projets.lire_note(projet, n["id"], racine)
-        titre_norm, texte_norm = normaliser(n["titre"]), normaliser(texte)
-        score = sum(3 * titre_norm.count(m) + texte_norm.count(m) for m in mots)
+        if scores_fts is not None:
+            score = scores_fts.get(n["id"], 0.0)
+        else:  # repli sans FTS5 : on compte les mots
+            titre_norm, texte_norm = normaliser(n["titre"]), normaliser(texte)
+            score = sum(3 * titre_norm.count(m) + texte_norm.count(m) for m in mots)
         resultats.append({
             "id": n["id"],
             "titre": n["titre"],
             "extrait": _extrait(texte, mots),
             "poids": round(forces.get(n["id"], 0.0), 3),
-            "pertinence": score,
+            "pertinence": round(score, 4),
             "sensible": bool(n["sensible"]),
             "validee": bool(n.get("validee", 0)),
             "modifiee_le": n["modifiee_le"],

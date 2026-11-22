@@ -74,8 +74,30 @@ COLONNES_AJOUTEES = {
 }
 
 
+# Recherche plein texte (FTS5, intégrée à SQLite) : titres + contenus des notes,
+# sans tenir compte des accents ni des majuscules.
+FTS = """
+CREATE VIRTUAL TABLE IF NOT EXISTS notes_fts USING fts5(
+    titre, contenu, note_id UNINDEXED, tokenize = 'unicode61 remove_diacritics 2'
+);
+"""
+
+
+def fts_disponible(conn):
+    """Vrai si la base sait faire de la recherche FTS5 (presque toujours le cas)."""
+    try:
+        conn.execute("SELECT 1 FROM notes_fts LIMIT 1")
+        return True
+    except Exception:
+        return False
+
+
 def installer(conn):
     conn.executescript(TABLES)
+    try:
+        conn.executescript(FTS)
+    except Exception:
+        pass  # SQLite sans FTS5 : la recherche simple prend le relais
     for table, colonnes in COLONNES_AJOUTEES.items():
         existantes = {r[1] for r in conn.execute(f"PRAGMA table_info({table})")}
         for nom, definition in colonnes:

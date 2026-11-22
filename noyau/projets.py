@@ -160,6 +160,7 @@ def creer_note(projet, titre, contenu="", type_note="note", sensible=False,
                 (titre, f"notes/{fichier.name}", type_note, maintenant, maintenant,
                  1 if sensible else 0, 1 if validee else 0),
             )
+            _indexer(conn, cur.lastrowid, titre, contenu)
             _ecrire_journal(conn, f"note créée : {titre}", acteur, raison)
         return cur.lastrowid
     finally:
@@ -179,9 +180,82 @@ def modifier_note(projet, note_id, contenu, racine=None, acteur=ACTEUR_PAR_DEFAU
         with conn:
             conn.execute("UPDATE notes SET modifiee_le = ? WHERE id = ?",
                          (_maintenant(), note_id))
+            _indexer(conn, note_id, ligne["titre"], contenu)
             _ecrire_journal(conn, f"note modifiée : {ligne['titre']}", acteur, raison)
     finally:
         conn.close()
+
+
+# ------------------------------------------------------------------
+# Recherche plein texte (FTS5)
+# ------------------------------------------------------------------
+
+def _indexer(conn, note_id, titre, contenu):
+    if not schema.fts_disponible(conn):
+        return
+    conn.execute("DELETE FROM notes_fts WHERE note_id = ?", (note_id,))
+    conn.execute("INSERT INTO notes_fts (titre, contenu, note_id) VALUES (?, ?, ?)",
+                 (titre, contenu, note_id))
+
+
+def reindexer(projet, racine=None):
+    """Reconstruit l'index de recherche depuis les fichiers .md (ex. ancienne base)."""
+    conn = _connexion(projet, racine)
+    try:
+        if not schema.fts_disponible(conn):
+            return 0
+        notes = conn.execute("SELECT id, titre, chemin FROM notes").fetchall()
+        with conn:
+            conn.execute("DELETE FROM notes_fts")
+            for n in notes:
+                f = dossier_projet(projet, racine) / n["chemin"]
+                texte = f.read_text(encoding="utf-8") if f.exists() else ""
+                conn.execute("INSERT INTO notes_fts (titre, contenu, note_id) VALUES (?, ?, ?)",
+                             (n["titre"], texte, n["id"]))
+        return len(notes)
+    finally:
+        conn.close()
+
+
+def _requete_fts(texte):
+    """Transforme une phrase en requête FTS5 sûre : mots-clés, préfixes, reliés par OR."""
+    from noyau.outils import mots_cles
+    mots = []
+    for m in mots_cles(texte or ""):
+        m = re.sub(r"[^\w]", "", m)
+        if m and m not in mots:
+            mots.append(m)
+    return " OR ".join(f'"{m}"*' for m in mots[:12])
+
+
+def rechercher(projet, requete, limite=10, racine=None):
+    """
+    Recherche plein texte dans le projet (titres + contenus), sans accents ni majuscules.
+    Renvoie [{"id", "score"}] du plus pertinent au moins pertinent (score > 0).
+    Renvoie None si la recherche FTS5 n'est pas disponible (l'appelant fait autrement).
+    """
+    requete_fts = _requete_fts(requete)
+    if not requete_fts:
+        return []
+    conn = _connexion(projet, racine)
+    try:
+        if not schema.fts_disponible(conn):
+            return None
+        nb_notes = conn.execute("SELECT COUNT(*) FROM notes").fetchone()[0]
+        nb_index = conn.execute("SELECT COUNT(*) FROM notes_fts").fetchone()[0]
+    finally:
+        conn.close()
+    if nb_index != nb_notes:
+        reindexer(projet, racine)  # index incomplet (notes d'avant la recherche) : on le refait
+    conn = _connexion(projet, racine)
+    try:
+        lignes = conn.execute(
+            "SELECT note_id, bm25(notes_fts, 3.0, 1.0) AS rang FROM notes_fts "
+            "WHERE notes_fts MATCH ? ORDER BY rang LIMIT ?", (requete_fts, int(limite))).fetchall()
+    finally:
+        conn.close()
+    # bm25 : plus c'est négatif, plus c'est pertinent. On le retourne en score positif.
+    return [{"id": int(r["note_id"]), "score": round(-r["rang"], 4)} for r in lignes]
 
 
 def lister_notes(projet, racine=None):
@@ -252,6 +326,7 @@ def lister_taches(projet, racine=None):
 def lire_journal(projet, racine=None):
     conn = _connexion(projet, racine)
     try:
-        return [dict(r) for r in conn.execute("SELECT * FROM journal ORDER BY rowid")]
+        # n = numéro de ligne, utile pour le journal « en direct » du cockpit.
+        return [dict(r) for r in conn.execute("SELECT rowid AS n, * FROM journal ORDER BY rowid")]
     finally:
         conn.close()
