@@ -1,155 +1,141 @@
 # JARVIS
 
-JARVIS est un assistant personnel modulaire, pensé comme un second cerveau.
-Il repose sur un **noyau** générique (le moteur commun) auquel on branche des **modules** (une fonction précise chacun).
-Le noyau ne contient rien de spécifique à un domaine : tout ce qui est particulier va dans un module.
+JARVIS est un **second cerveau** personnel, inspiré de JARVIS dans Iron Man. Il garde la mémoire
+de chacun de tes projets, la fait vivre (les liens utiles se renforcent, les autres s'oublient),
+rêve la nuit pour te proposer des idées, et fait travailler des agents qui **proposent** sans
+jamais rien écrire seuls : c'est toi qui valides.
 
-> **État : prototype fonctionnel n°1.** Toutes les briques tournent, avec une IA **simulée** par
-> défaut (gratuite, locale, sans clé). Python seul : **rien à installer**.
+> **État : prototype fonctionnel n°1.** Tout tourne sur ton Mac, en Python seul (**rien à
+> installer**), avec une IA **simulée** par défaut : 0 €, aucune clé, aucun réseau nécessaire.
+> 184 tests automatiques, tous réussis.
 
-![Le cockpit JARVIS : cerveau 3D à deux hémisphères et panneaux](docs/maquettes/cockpit-ordinateur.png)
+![Le cerveau 3D de JARVIS : deux hémisphères reliés par le corps calleux](docs/maquettes/cerveau-3d.png)
 
-## Comment c'est construit
+## Les mots à connaître
 
-```
-INTERFACE        cockpit web local · éditeur de notes · cerveau 3D
-HÉMISPHÈRE ACTIF                         HÉMISPHÈRE PASSIF
- orchestrateur (observer, décider,        notes Markdown = neurones
-   agir, mesurer)                         synapses (liens pondérés)
- agents en 4 voies                        base SQLite par projet
- routeur IA (plafond 5 €/mois)            journal
- garde d'écriture · modules               sommeil (oubli + synthèse)
-            \                                  /
-             ===== CORPS CALLEUX (MCP) =====
-              se_souvenir · proposer · activer · journal
-```
-
-- **Projets étanches** : un projet = un dossier = ses notes, sa base, son journal. Aucun accès entre projets.
-- **Synapses** : chaque lien `[[Titre]]` relie deux notes. Le lien se renforce quand les notes servent
-  ensemble, et s'affaiblit chaque nuit (oubli). Seules les notes validées renforcent des liens.
-- **Garde d'écriture** : un agent ne fait que **proposer**. Rien n'est écrit avant ta validation.
-  Aucun agent ne peut publier, payer ou supprimer.
+| Mot | Ce que c'est |
+|---|---|
+| **Projet** | Un dossier étanche : ses notes, sa base, son journal. Aucun lien entre deux projets. |
+| **Neurone** | Une note (fichier texte Markdown). Le contenu ne s'affiche jamais dans le cerveau 3D. |
+| **Synapse** | Un lien `[[Titre]]` entre deux notes, avec un poids de 0 à 1. Il monte de 0,10 quand les notes servent ensemble (si elles sont validées), baisse de 2 % chaque nuit, et s'archive sous 0,05. |
+| **Hémisphère passif** | La mémoire : notes, synapses, journal, sommeil. |
+| **Hémisphère actif** | L'action : orchestrateur, agents, routeur IA, modules. |
+| **Corps calleux** | Le seul pont entre les deux. C'est un **serveur MCP** : le standard qui permet à Claude (Desktop ou Code) d'utiliser des outils. 4 messages : `se_souvenir`, `proposer`, `activer`, `journal`. |
+| **Garde d'écriture** | Un agent ne fait que **proposer**, sur une copie. Rien n'est écrit sans ta validation : bouton Valider, ou `python3 -m noyau.valider`. |
+| **Agents · 4 voies** | Planifier (tâches et ordres), Proposer (notes), Comparer (notes proches), Vérifier (propositions et liens cassés). |
+| **Routeur IA** | La seule porte vers l'IA : modèle local (Ollama) d'abord, Gemini gratuit pour le non sensible, Claude payant plafonné à 5 €/mois. Mode **simulé** par défaut. |
+| **Sommeil et rêve** | Une fois par jour et par projet : tri, analyse, rêve (des idées en croisant des notes éloignées), réveil (seule la meilleure idée est gardée). |
 
 ## Essayer la démo sur ton Mac, pas à pas
 
 La démo utilise de **fausses données** (« Projet A » et « Projet B ») rangées à part, dans
-`~/.jarvis/demo/` : elle ne touche jamais à tes vrais projets. L'IA est simulée : 0 €.
+`~/.jarvis/demo/` : elle ne touche jamais à tes vrais projets.
 
-1. **Télécharger JARVIS.** Sur la page GitHub du dépôt, choisis la branche voulue, clique sur
-   le bouton vert **Code**, puis **Download ZIP**. Ouvre le fichier téléchargé : un dossier
-   `JARVIS-…` apparaît dans **Téléchargements**.
-2. **Ouvrir le Terminal.** Appuie sur **Cmd + Espace**, tape `Terminal`, puis **Entrée**.
-3. **Aller dans le dossier.** Tape `cd ` (avec l'espace), glisse le dossier `JARVIS-…` depuis le
-   Finder dans la fenêtre du Terminal, puis appuie sur **Entrée**.
-4. **Vérifier Python.** Tape `python3 --version` puis **Entrée**. Tu dois voir `Python 3.9` ou
+1. **Télécharger JARVIS.** Ouvre la page de la branche sur GitHub, clique sur le bouton vert
+   **Code**, puis **Download ZIP**. Ouvre le fichier : un dossier `JARVIS-…` apparaît dans
+   **Téléchargements**.
+2. **Ouvrir le Terminal.** **Cmd + Espace**, tape `Terminal`, puis **Entrée**.
+3. **Aller dans le dossier.** Tape `cd ` (avec l'espace), **glisse le dossier** `JARVIS-…` depuis
+   le Finder dans la fenêtre du Terminal, puis **Entrée**.
+4. **Vérifier Python.** Tape `python3 --version` puis **Entrée** : tu dois voir `Python 3.9` ou
    plus. Si le Mac propose d'installer les « outils de développement », accepte et recommence.
-5. **Lancer la démo.** Tape :
+5. **Lancer la démo** :
 
    ```
    python3 exemples/demo.py
    ```
 
-   Le Terminal affiche « Démo créée… » puis « Cockpit JARVIS prêt », et ton navigateur s'ouvre
-   sur le cerveau 3D. **Laisse le Terminal ouvert** pendant que tu utilises l'interface.
-6. **Ce que tu peux essayer :**
-   - les onglets **Projet A / Projet B** (un projet à la fois) ;
-   - glisser sur le cerveau pour le tourner, cliquer sur un neurone pour voir ses liens ;
-   - **Simuler une nuit** : oubli 0,02, apprentissage 0,10, archivage sous 0,05 ;
-   - **Ordre du moment** : Fait / Pas fait ;
-   - **Propositions à valider** : bouton Valider, ou dans un **second** Terminal (même dossier) :
-     `python3 -m noyau.valider --dossier ~/.jarvis/demo "Projet A:1"`.
-7. **Arrêter.** Dans le Terminal, appuie sur **Ctrl + C**. Pour repartir d'une démo neuve :
+   Le Terminal raconte chaque étape :
+   1. Mémoire : deux projets, notes liées et validées ;
+   2. Nuit de sommeil : propositions de tri, synthèse, idée rêvée ;
+   3. Orchestrateur : les 4 voies d'agents font leurs propositions ;
+   4. Garde d'écriture : une proposition validée par la commande `python3 -m noyau.valider` ;
+   5. Corps calleux : la mémoire lue par un vrai client MCP, comme le ferait Claude ;
+   6. Interface : ton navigateur s'ouvre sur le **cerveau 3D**. Laisse le Terminal ouvert.
+6. **À essayer dans le navigateur :**
+   - **Cerveau 3D** : glisse pour tourner, clique sur un neurone pour voir ses liens et leur poids ;
+     **Simuler une nuit** déroule une vraie nuit (tri, analyse, rêve, réveil) ; onglets Projet A / B.
+   - **Cockpit** : l'ordre du moment (Fait / Pas fait), les propositions à **Valider** ou
+     **Refuser**, les 4 voies d'agents, le journal qui se met à jour tout seul, l'idée du jour.
+   - **Notes** : lire, écrire, relier avec `[[Titre]]`.
+   - **Version iPhone** : rétrécis la fenêtre ; le graphe passe en haut, les panneaux en liste dessous.
+7. **Arrêter** : **Ctrl + C** dans le Terminal. Repartir d'une démo neuve :
    `python3 exemples/demo.py --remplacer`.
 
-**Maquettes** (captures de la démo) : [ordinateur](docs/maquettes/cockpit-ordinateur.png) ·
-[projet sensible](docs/maquettes/cockpit-projet-sensible.png) · [iPhone](docs/maquettes/cockpit-iphone.png).
-Elles suivent le document du projet « JARVIS - design interface (direction visuelle) » :
-fond `#030811`, cyan `#5CE1FF` dominant, blanc `#E6F7FF`, gris-bleu `#86A9BC`, ambre `#FFB547`
-réservé à ce qui demande une action ; titres en Rajdhani, données en JetBrains Mono.
-
-Sur iPhone : la mise en page est prête (graphe en haut, panneaux en liste dessous), mais pour
-l'instant l'interface n'est ouverte qu'au Mac lui-même (127.0.0.1), par sécurité. L'accès depuis
-l'iPhone viendra avec le serveur (marche 8). En attendant, rétrécis la fenêtre du navigateur
-sur le Mac pour voir la version iPhone.
+Sans Internet, tout marche sauf le cerveau en 3D (sa bibliothèque Three.js vient d'Internet) et
+les polices : l'aperçu 2D du cockpit le remplace.
 
 ## Avec tes vrais projets
 
-- Ouvrir le cockpit sur tes données (`~/.jarvis/`) : `python3 jarvis.py cockpit`
-- Brancher Claude Desktop : `python3 jarvis.py config-claude` affiche le réglage à coller.
-- Valider une proposition : `python3 -m noyau.valider` (liste), puis `python3 -m noyau.valider "Projet:numéro"`.
-- Lancer le rêve à chaque réveil du Mac : `python3 jarvis.py installer-sommeil`.
-- Passer aux vraies IA : dans `~/.jarvis/reglages.local`, mets `mode_ia=reel`, puis ta clé
-  `CLE_API_GEMINI=` (gratuit, pour le courant non sensible) et/ou `CLE_API_ANTHROPIC=` (payant,
-  plafonné à 5 € par mois), et/ou `modele_local=` (Ollama). Jamais de clé dans le chat ni le dépôt.
-
-Toutes les commandes : `python3 jarvis.py --help`.
-
-## Sommeil et rêve
-
-`python3 jarvis.py dormir` (tous les projets) ou `python3 jarvis.py dormir Demo-A` (un seul).
-Règle des 24 h : un projet qui a déjà rêvé dans les dernières 24 heures est laissé tranquille.
-C'est une commande autonome : aujourd'hui, `python3 jarvis.py installer-sommeil` la fait lancer
-par le Mac à chaque réveil et à l'ouverture de session ; demain, un mode nuit ou un serveur
-pourra l'appeler de la même façon. Rien ne touche à la veille du Mac.
-
-Chaque projet rêve seul (étanchéité conservée), en 4 phases, chacune notée au journal :
-
-| Phase | Ce qui se passe |
+| Pour… | Commande (dans le dossier JARVIS) |
 |---|---|
-| Tri | Le code applique l'oubli et archive les liens trop faibles. Puis l'IA repère doublons, notes orphelines et notes périmées : chaque correction devient une **proposition** à valider. |
-| Analyse | Résumé du projet entier (code puis IA, au plus `tokens_max_analyse` jetons envoyés) et synthèses proposées pour les groupes de notes très liées. |
-| Rêve | Des paires ou triplets de notes **éloignées** sont tirés au hasard ; une IA créative (température haute) imagine `candidates_par_nuit` idées. |
-| Réveil | Une IA rigoureuse note chaque idée (nouveauté, utilité, faisabilité selon tes contraintes) et ne garde que **la meilleure** (`idees_par_projet`, 1 par défaut). |
+| Ouvrir l'interface sur tes données (`~/.jarvis/`) | `python3 jarvis.py cockpit` |
+| Voir les propositions en attente | `python3 -m noyau.valider` |
+| Valider (ou refuser) une proposition | `python3 -m noyau.valider "Projet:3"` (`--refuser "raison"`) |
+| Lancer un tour de l'orchestrateur | `python3 jarvis.py tour` |
+| Faire dormir et rêver un projet (1 fois / 24 h) | `python3 jarvis.py dormir "Projet"` |
+| L'idée du jour, la garder ou la rejeter | `python3 jarvis.py reve` · `python3 jarvis.py reve garder "Projet:1" "raison"` |
+| Rêver à chaque réveil du Mac | `python3 jarvis.py installer-sommeil` |
+| Brancher Claude Desktop (MCP) | `python3 jarvis.py config-claude`, coller le réglage affiché, redémarrer Claude |
+| Lancer le serveur MCP à la main | `python3 -m noyau.corps_calleux` |
+| Activer le module de notifications | `python3 jarvis.py modules --activer notifications` |
+| Lancer tous les tests | `python3 jarvis.py tests` |
 
-L'idée du jour : `python3 jarvis.py reve`. Ta décision :
-`python3 jarvis.py reve garder Demo-A:1 "raison"` ou `python3 jarvis.py reve rejeter Demo-A:1 "raison"`.
-Une idée gardée renforce les liens entre ses notes sources ; la raison d'un rejet est rappelée
-au rêve suivant pour ne pas la répéter. Le rêve ne fait que proposer : il n'agit jamais.
+Toutes les commandes : `python3 jarvis.py --help`. Pour essayer sur un autre dossier de données :
+`python3 jarvis.py --dossier /un/dossier …`.
 
-**Quelle IA ?**
-- Le modèle local (Ollama, gratuit, sur ton Mac) d'abord, s'il est installé et renseigné
-  (`modele_local`). Lui seul peut recevoir des notes sensibles.
-- Sans modèle local : les notes sensibles sont exclues du rêve ; les autres peuvent passer par
-  l'offre gratuite autorisée par le routeur.
-- Cloud payant : seulement pour la phase réveil, si `cloud_pour_reveil=true`, dans la limite
-  du budget IA mensuel du routeur. Jamais de note sensible vers une offre gratuite.
+## Réglages : `~/.jarvis/reglages.local`
 
-**Réglages** : `~/.jarvis/reglages.local` (hors du dépôt), créé tout seul avec les valeurs par
-défaut à la première commande. Tu y mets aussi tes contraintes : `contrainte_budget_eur`,
-`contrainte_niveau`, `contrainte_objectifs`.
+Ce fichier est créé tout seul à la première commande, **hors du dépôt**. Les principaux :
 
-Sans clé API ni Ollama, tout tourne en mode démo (IA de démonstration, 0 €) :
-`python3 exemples/demo.py`, puis `python3 jarvis.py --dossier ~/.jarvis/demo reve`.
+| Réglage | Par défaut | Rôle |
+|---|---|---|
+| `mode_ia` | `simule` | `simule` = IA factice sans réseau ; `reel` = vraies IA |
+| `BUDGET_IA_MAX_EUR_MOIS` | `5` | plafond de dépense IA par mois : au-delà, l'appel est bloqué |
+| `modele_local` | `aucun` | nom du modèle Ollama (ex. `llama3.2`), quand Ollama sera installé |
+| `CLE_API_GEMINI`, `CLE_API_ANTHROPIC` | vides | tes clés, à écrire **toi-même** dans ce fichier, jamais dans le chat |
+| `idees_par_projet`, `candidates_par_nuit` | `1`, `5` | idées gardées et imaginées chaque nuit |
+| `cloud_pour_reveil` | `false` | permet le cloud payant pour noter les idées (réveil) |
+| `contrainte_budget_eur`, `contrainte_niveau`, `contrainte_objectifs` | `0`, `débutant`, vide | tes contraintes, pour noter les idées du rêve |
 
-## Structure des dossiers
+`reglages.exemple` (dans le dépôt) montre tous les réglages possibles, sans aucune vraie valeur.
 
-| Dossier | Rôle |
+## Structure du dépôt
+
+| Dossier ou fichier | Rôle |
 |---|---|
-| `noyau/` | Le moteur commun : projets, synapses, corps calleux, serveur MCP, routeur IA, orchestrateur, agents, sommeil et rêve, prises pour modules. |
-| `noyau/agents/` | Un fichier par agent : sa consigne et les seuls outils autorisés. |
-| `modules/` | Les modules branchables. Exemple : `notifications` (mode DÉMO). Retirer un dossier retire le module. |
-| `interface/` | Le cockpit web (serveur local + page avec le cerveau 3D). |
-| `exemples/` | Les projets de démonstration. |
-| `jarvis.py` | La commande principale (la « télécommande »). |
+| `noyau/projets.py` | Projets étanches, notes Markdown, liens, recherche plein texte (FTS5), journal |
+| `noyau/synapses.py` | Synapses : création, renforcement, oubli, archivage |
+| `noyau/corps_calleux.py` | Les 4 messages + les actions humaines ; `python3 -m noyau.corps_calleux` lance le serveur MCP |
+| `noyau/serveur_mcp.py`, `noyau/client_mcp.py` | Le protocole MCP (serveur et petit client de test) |
+| `noyau/routeur.py`, `noyau/routeur_ia.py` | Le routeur IA, le budget, les vrais branchements (Ollama, Gemini, Claude) |
+| `noyau/orchestrateur.py`, `noyau/agents.py`, `noyau/voies.py`, `noyau/agents/` | Hémisphère actif : la boucle, les agents (un fichier de réglage chacun), les 4 voies |
+| `noyau/valider.py` | La garde d'écriture humaine : `python3 -m noyau.valider` |
+| `noyau/sommeil.py`, `noyau/reve.py`, `noyau/ia_demo.py` | Sommeil (tri, analyse) et rêve (rêve, réveil) ; l'IA simulée |
+| `noyau/modules.py`, `modules/notifications/` | La prise standard des modules et le premier module |
+| `interface/` | Le serveur web local (127.0.0.1 seulement) et la page : cerveau 3D, cockpit, notes, journal |
+| `exemples/demo.py` | La démo de bout en bout |
+| `jarvis.py` | La « télécommande » : toutes les commandes |
+| `docs/maquettes/` | Captures de l'interface (données fictives) |
+| `RAPPORT-FINAL.md` | Ce qui a été construit, testé, et ce qui reste à décider |
 
-Fichiers à la racine : `.gitignore` (ce que Git ne doit jamais envoyer), `reglages.exemple`
-(modèle de réglages sans aucune vraie valeur ; les vrais réglages vivent dans `~/.jarvis/reglages.local`).
+Le **noyau** est générique : rien n'y est propre à un domaine (crypto, agenda, sport…). Tout ce
+qui est particulier devient un module dans `modules/`.
 
-Tes données vont dans `~/.jarvis/` (jamais dans le dépôt) :
-`projets/<nom>/notes/*.md`, `projets/<nom>/projet.db`, `systeme.db` (budget IA, modules).
+## Maquettes
 
-## Tests
-
-`python3 jarvis.py tests` lance tous les tests. Ils travaillent dans un dossier temporaire
-et ne touchent jamais à `~/.jarvis`.
+- Dans le dépôt : [cerveau 3D](docs/maquettes/cerveau-3d.png) · [cockpit](docs/maquettes/cockpit.png) ·
+  [iPhone, cerveau](docs/maquettes/iphone-cerveau.png) · [iPhone, cockpit](docs/maquettes/iphone-cockpit.png)
+- Maquettes de référence (privées, sur ton compte claude.ai) :
+  [cerveau 3D](https://claude.ai/artifact/KeQgGmVcuthtFE3QT6oxmc) ·
+  [cockpit Mac et iPhone](https://claude.ai/artifact/DkTEuJwajiCwFuZM3fv83d)
+- Direction visuelle : fond `#030811`, cyan `#5CE1FF` dominant, blanc `#E6F7FF`, gris-bleu `#86A9BC`,
+  ambre `#FFB547` réservé à ce qui demande une action ; titres en Rajdhani, données en JetBrains Mono.
 
 ## Règle d'or : aucun secret dans ce dépôt
 
-Ce dépôt est **public**. Aucune clé API, aucun mot de passe, aucun jeton ne doit y être écrit.
-
-Pour configurer JARVIS : ouvre `~/.jarvis/reglages.local` (créé automatiquement à la première
-commande) et mets-y tes vraies valeurs. Ce fichier est dans ton dossier personnel, hors du dépôt :
-il n'est jamais envoyé sur GitHub. `reglages.exemple` montre les réglages possibles.
-
-Les notes **sensibles** (ou d'un projet sensible) ne partent jamais vers une IA gratuite en ligne,
-et leur texte est masqué quand Claude interroge le cerveau via MCP.
+Ce dépôt est **public**. Aucune clé API, aucun mot de passe, aucun jeton ne doit y être écrit,
+ni dans le chat. Tes clés vont dans `~/.jarvis/reglages.local`, dans ton dossier personnel, hors
+du dépôt. Tes données (notes, bases, journal) vivent dans `~/.jarvis/`, jamais dans le dépôt.
+Les notes **sensibles** ne partent jamais vers une offre d'IA gratuite, et leur texte est masqué
+quand Claude interroge le cerveau.
