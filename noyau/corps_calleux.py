@@ -30,7 +30,7 @@ from noyau.outils import jour, mots_cles, normaliser
 
 # Types de propositions acceptés. Rien ne permet de publier, payer ou
 # supprimer : ces actions ne peuvent pas être proposées par un agent.
-TYPES_PROPOSITION = ("note", "synthese", "tache")
+TYPES_PROPOSITION = ("note", "synthese", "tache", "modification")
 STATUTS = ("en attente", "écrite", "refusée")
 MASQUE_SENSIBLE = "[note sensible : contenu masqué]"
 
@@ -115,7 +115,7 @@ def se_souvenir(projet, requete="", limite=5, racine=None, masquer_sensibles=Fal
 # ==================================================================
 
 def proposer(projet, type, contenu, liens=None, titre=None, date=None, racine=None,
-             acteur="agent", raison=None):
+             acteur="agent", raison=None, note_cible=None):
     """
     Crée une proposition « en attente ». Rien n'est écrit dans les notes :
     le contenu est rangé dans la table propositions ET dans une copie
@@ -132,15 +132,24 @@ def proposer(projet, type, contenu, liens=None, titre=None, date=None, racine=No
         premiere = contenu.splitlines()[0].lstrip("# ").strip()
         titre = premiere[:80] or "Sans titre"
     liens = [l.strip() for l in (liens or []) if l and l.strip()]
+    if type == "modification":
+        # Une modification remplace le texte d'une note existante : nouveau texte complet.
+        cible = next((n for n in projets.lister_notes(projet, racine)
+                      if n["id"] == note_cible), None) if note_cible is not None else None
+        if cible is None:
+            raise ValueError("Une modification doit viser une note existante (note_cible).")
+        titre = titre or f"Modifier « {cible['titre']} »"
+    else:
+        note_cible = None
 
     conn = projets._connexion(projet, racine)
     try:
         with conn:
             cur = conn.execute(
                 "INSERT INTO propositions (type, titre, contenu, liens, statut, creee_le, "
-                "acteur, raison) VALUES (?, ?, ?, ?, 'en attente', ?, ?, ?)",
+                "acteur, raison, note_cible) VALUES (?, ?, ?, ?, 'en attente', ?, ?, ?, ?)",
                 (type, titre, contenu, json.dumps(liens, ensure_ascii=False),
-                 _date_texte(date), acteur, raison))
+                 _date_texte(date), acteur, raison, note_cible))
             pid = cur.lastrowid
             _journal_brut(conn, date, acteur, f"proposition {pid} créée ({type}) : {titre}",
                           raison)
@@ -259,6 +268,10 @@ def valider_proposition(projet, pid, date=None, racine=None, acteur="kayd", rais
                                       racine=racine, acteur=acteur, validee=True,
                                       raison=f"proposition {pid} validée")
         synapses.relier_note(projet, resultat, jour(date), racine=racine, acteur=acteur)
+    elif p["type"] == "modification":
+        modifier_note_humaine(projet, p["note_cible"], p["contenu"], date=date, racine=racine,
+                              acteur=acteur)
+        resultat = p["note_cible"]
     else:  # tache
         note_liee = _id_note_par_titre(projet, p["liens"][0], racine) if p["liens"] else None
         resultat = projets.creer_tache(projet, p["titre"], note_id=note_liee, racine=racine,

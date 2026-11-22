@@ -35,8 +35,16 @@ def normaliser(texte):
 MOTS_VIDES = set(normaliser(
     "les des une un le la de du et ou en au aux sur pour par avec dans que qui "
     "quoi est sont sais tu je il elle nous vous ils ce cette ces mon ma mes ton "
-    "ta tes son sa ses leur leurs pas plus moins tout tous fait faire"
+    "ta tes son sa ses leur leurs pas plus moins tout tous fait faire voir"
 ).split())
+
+
+def similarite(a, b):
+    """Ressemblance entre deux textes, de 0 (rien en commun) à 1 (mêmes mots)."""
+    ma, mb = set(mots_cles(a)), set(mots_cles(b))
+    if not ma or not mb:
+        return 0.0
+    return len(ma & mb) / len(ma | mb)
 
 
 def mots_cles(texte):

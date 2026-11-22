@@ -53,10 +53,12 @@ class Agent:
         self._verifier("se_souvenir")
         return corps_calleux.se_souvenir(projet, requete, limite, racine=self.racine)
 
-    def proposer(self, projet, type, contenu, liens=None, titre=None, raison=None):
+    def proposer(self, projet, type, contenu, liens=None, titre=None, raison=None,
+                 note_cible=None):
         self._verifier("proposer")
         return corps_calleux.proposer(projet, type, contenu, liens, titre=titre, date=self.date,
-                                      racine=self.racine, acteur=self.acteur, raison=raison)
+                                      racine=self.racine, acteur=self.acteur, raison=raison,
+                                      note_cible=note_cible)
 
     def activer(self, projet, ids_notes):
         self._verifier("activer")

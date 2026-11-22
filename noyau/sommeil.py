@@ -36,12 +36,13 @@ import sys
 from pathlib import Path
 
 from noyau import agent as agents_mod
-from noyau import corps_calleux, reglages, routeur_ia, synapses, systeme
-from noyau.outils import jour
+from noyau import corps_calleux, projets, reglages, routeur_ia, synapses, systeme
+from noyau.outils import jour, similarite
 
 REGLAGES_SOMMEIL = {
     "seuil_groupe": 0.25,      # poids minimum pour que deux notes soient « très liées »
     "taille_min_groupe": 3,    # nombre minimum de notes pour proposer une synthèse
+    "tri_max_propositions": 3,  # au plus 3 propositions de tri par projet et par nuit
 }
 
 
@@ -151,7 +152,7 @@ def trouver_groupes(projet, racine=None, reglages=None):
 
 def deja_propose(projet, marque, racine):
     """Vrai si une proposition (quel que soit son statut) porte déjà cette marque."""
-    return any(marque in (p["raison"] or "")
+    return any((p["raison"] or "").startswith(marque + " ") or (p["raison"] or "") == marque
                for p in corps_calleux.lister_propositions(projet, racine=racine))
 
 
@@ -160,11 +161,96 @@ def deja_propose(projet, marque, racine):
 # ------------------------------------------------------------------
 
 def phase_tri(ctx):
+    # 1. Le code d'abord : oubli des synapses et archivage sous le seuil.
     oubli = synapses.appliquer_oubli(ctx.projet, ctx.date, racine=ctx.racine)
-    ctx.journal("sommeil · tri",
+    ctx.journal("sommeil · tri (code)",
                 f"oubli appliqué : {oubli['renforcees']} renforcement(s), "
                 f"{oubli['archivees']} archivage(s)")
-    return oubli
+
+    # 2. Puis une IA légère : doublons, notes orphelines, notes périmées.
+    notes = ctx.notes_partageables()
+    if not notes:
+        ctx.journal("sommeil · tri (IA)", "rien à envoyer : aucune note partageable "
+                    "(les notes sensibles sont exclues)")
+        return dict(oubli, tri_propositions=[])
+    liens = {}
+    for s in synapses.lister_synapses(ctx.projet, ctx.racine, avec_archivees=False):
+        for nid in (s["note_source"], s["note_cible"]):
+            liens[nid] = liens.get(nid, 0) + 1
+    dates = {n["id"]: n["modifiee_le"][:10] for n in projets.lister_notes(ctx.projet, ctx.racine)}
+    peremption = int(reglages.lire_nombre("TRI_PEREMPTION_JOURS", 90))
+    demande = {
+        "consigne": ("Repère dans ces notes : les doublons (deux notes qui disent la même chose), "
+                     "les notes orphelines (aucun lien) et les notes périmées (pas modifiées "
+                     f"depuis plus de {peremption} jours). Réponds en JSON : "
+                     '{"doublons": [{"notes": [id_ancienne, id_recente], "raison": "..."}], '
+                     '"orphelines": [{"note": id, "raison": "..."}], '
+                     '"perimees": [{"note": id, "raison": "..."}]}'),
+        "aujourd_hui": ctx.date.isoformat(),
+        "peremption_jours": peremption,
+        "notes": [{"id": n["id"], "titre": n["titre"], "extrait": n["extrait"][:200],
+                   "liens_actifs": liens.get(n["id"], 0), "modifiee_le": dates[n["id"]]}
+                  for n in notes],
+    }
+    reponse = ctx.nuit.ia("trier", demande, "courante", sensible=False, temperature=0.1)
+    d = reponse["donnees"] or {}
+    proposees = _proposer_tri(ctx, notes, d)
+    ctx.journal("sommeil · tri (IA)",
+                f"{len(d.get('doublons', []))} doublon(s), {len(d.get('orphelines', []))} "
+                f"orpheline(s), {len(d.get('perimees', []))} périmée(s) repéré(s) ; "
+                f"{len(proposees)} proposition(s) de modification (à valider)")
+    return dict(oubli, tri_propositions=proposees)
+
+
+def _proposer_tri(ctx, notes, d):
+    """Transforme les trouvailles de l'IA en propositions de modification (jamais d'écriture)."""
+    par_id = {n["id"]: n for n in notes}
+    jour_txt = ctx.date.isoformat()
+    candidats = []  # (marque, note_cible, nouveau_contenu, raison lisible)
+    for item in d.get("doublons", []):
+        ids = [i for i in (item.get("notes") or []) if i in par_id]
+        if len(ids) != 2 or ids[0] == ids[1]:
+            continue
+        a, b = sorted(ids)
+        texte = projets.lire_note(ctx.projet, b, ctx.racine)
+        candidats.append((f"tri:doublon:{a},{b}", b,
+                          f"> ⚠ Doublon probable de [[{par_id[a]['titre']}]] (repéré pendant le "
+                          f"sommeil du {jour_txt}). À fusionner à la main si besoin.\n\n{texte}",
+                          item.get("raison") or "doublon probable"))
+    for item in d.get("orphelines", []):
+        i = item.get("note")
+        if i not in par_id:
+            continue
+        autres = [n for n in notes if n["id"] != i]
+        voisin = max(autres, key=lambda n: similarite(n["titre"] + " " + n["extrait"],
+                                                      par_id[i]["titre"] + " " + par_id[i]["extrait"]),
+                     default=None)
+        texte = projets.lire_note(ctx.projet, i, ctx.racine)
+        suggestion = f", par exemple à [[{voisin['titre']}]]" if voisin else ""
+        candidats.append((f"tri:orpheline:{i}", i,
+                          f"{texte.rstrip()}\n\n> Note isolée (sommeil du {jour_txt}) : "
+                          f"à relier{suggestion}.\n",
+                          item.get("raison") or "note sans aucun lien"))
+    for item in d.get("perimees", []):
+        i = item.get("note")
+        if i not in par_id:
+            continue
+        texte = projets.lire_note(ctx.projet, i, ctx.racine)
+        candidats.append((f"tri:perimee:{i}", i,
+                          f"> ⚠ À revoir : note ancienne (sommeil du {jour_txt}).\n\n{texte}",
+                          item.get("raison") or "note pas modifiée depuis longtemps"))
+
+    proposees = []
+    for marque, cible, contenu, raison in candidats:
+        if len(proposees) >= ctx.r["tri_max_propositions"]:
+            break
+        if deja_propose(ctx.projet, marque, ctx.racine):
+            continue  # déjà proposé (même refusé) : on ne répète pas
+        pid = ctx.agent.proposer(ctx.projet, "modification", contenu,
+                                 titre=f"Tri : « {par_id[cible]['titre']} »",
+                                 raison=f"{marque} · {raison}", note_cible=cible)
+        proposees.append(pid)
+    return proposees
 
 
 # ------------------------------------------------------------------
@@ -176,7 +262,7 @@ def phase_analyse(ctx):
     proposees = []
     for g in trouver_groupes(ctx.projet, ctx.racine, ctx.r):
         signature = ",".join(str(i) for i in g["notes"])
-        if deja_propose(ctx.projet, f"groupe {signature}", ctx.racine):
+        if deja_propose(ctx.projet, f"groupe {signature} :", ctx.racine):
             continue
         membres = [notes[i] for i in g["notes"] if i in notes]
         titres = [m["titre"] for m in membres]

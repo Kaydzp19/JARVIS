@@ -138,7 +138,8 @@ def lister_projets(racine=None):
 # ------------------------------------------------------------------
 
 def creer_note(projet, titre, contenu="", type_note="note", sensible=False,
-               racine=None, acteur=ACTEUR_PAR_DEFAUT, raison=None, validee=False):
+               racine=None, acteur=ACTEUR_PAR_DEFAUT, raison=None, validee=False,
+               horodatage=None):
     """Écrit un fichier .md dans notes/ et ajoute une ligne dans la table notes."""
     dossier_notes = dossier_projet(projet, racine) / "notes"
     base = _nom_de_fichier(titre)
@@ -151,7 +152,7 @@ def creer_note(projet, titre, contenu="", type_note="note", sensible=False,
     conn = _connexion(projet, racine)
     try:
         fichier.write_text(contenu, encoding="utf-8")
-        maintenant = _maintenant()
+        maintenant = horodatage or _maintenant()  # horodatage : pour la démo et les tests
         with conn:
             cur = conn.execute(
                 "INSERT INTO notes (titre, chemin, type, creee_le, modifiee_le, sensible, validee) "

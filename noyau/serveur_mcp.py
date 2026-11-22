@@ -67,6 +67,9 @@ def _outils(racine=None):
                     "type": {"type": "string", "enum": list(corps_calleux.TYPES_PROPOSITION)},
                     "contenu": {"type": "string", "description": "Texte en Markdown."},
                     "titre": {"type": "string", "description": "Titre (facultatif)."},
+                    "note_cible": {"type": "integer",
+                                   "description": "Pour une modification : id de la note visée "
+                                                  "(le contenu remplace son texte)."},
                     "liens": {"type": "array", "items": {"type": "string"},
                               "description": "Titres des notes à relier avec [[...]]."},
                 },
@@ -118,6 +121,7 @@ def appeler_outil(nom, args, racine=None):
     elif nom == "proposer":
         pid = corps_calleux.proposer(projet, args.get("type"), args.get("contenu"),
                                      args.get("liens"), titre=args.get("titre"),
+                                     note_cible=args.get("note_cible"),
                                      racine=racine, acteur=ACTEUR,
                                      raison="proposé depuis Claude")
         resultat = {"proposition": pid, "statut": "en attente",

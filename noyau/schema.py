@@ -43,6 +43,7 @@ COLONNES_AJOUTEES = {
     # table : [(colonne, définition)]
     "notes": [("validee", "INTEGER NOT NULL DEFAULT 0 CHECK (validee IN (0, 1))")],
     "taches": [("contrat", "TEXT")],
+    "propositions": [("note_cible", "INTEGER")],  # note visée par une modification
 }
 
 
