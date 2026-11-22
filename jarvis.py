@@ -8,6 +8,7 @@ Exemples (depuis le dossier du dépôt) :
     python3 jarvis.py maintenant   affiche ce qu'il faut faire maintenant
     python3 jarvis.py tour         un tour de l'orchestrateur (observer, décider, agir, mesurer)
     python3 jarvis.py dormir       le sommeil : oubli + propositions de synthèse
+    python3 jarvis.py installer-sommeil   lance le sommeil chaque nuit (Mac, launchd)
     python3 jarvis.py propositions liste les propositions en attente
     python3 jarvis.py valider Demo-A 3     valide la proposition 3 du projet Demo-A
     python3 jarvis.py refuser Demo-A 3     refuse la proposition 3
@@ -66,6 +67,28 @@ def cmd_tour(args):
 def cmd_dormir(args):
     from noyau import sommeil
     _afficher(sommeil.dormir(args.date))
+
+
+def cmd_installer_sommeil(args):
+    """Installe le sommeil chaque nuit sur Mac (launchd)."""
+    import subprocess
+    from noyau import reglages, sommeil
+    if sys.platform != "darwin":
+        print("Cette commande est prévue pour Mac. Ailleurs, utilise le planificateur du système.")
+        return
+    donnees = reglages.dossier_donnees()
+    donnees.mkdir(parents=True, exist_ok=True)
+    cible = Path.home() / "Library" / "LaunchAgents" / f"{sommeil.ETIQUETTE}.plist"
+    cible.parent.mkdir(parents=True, exist_ok=True)
+    cible.write_text(sommeil.plist_launchd(RACINE_DEPOT, donnees, heure=args.heure,
+                                           minute=args.minute), encoding="utf-8")
+    subprocess.run(["launchctl", "unload", str(cible)], capture_output=True)
+    r = subprocess.run(["launchctl", "load", "-w", str(cible)], capture_output=True, text=True)
+    if r.returncode == 0:
+        print(f"Sommeil installé : chaque nuit à {args.heure}h{args.minute:02d} "
+              f"(si le Mac est allumé). Journal : {donnees / 'sommeil.log'}")
+    else:
+        print("Échec de l'installation :", r.stderr.strip())
 
 
 def cmd_propositions(args):
@@ -130,6 +153,10 @@ def main(argv=None):
     s = sous.add_parser("dormir", help="le sommeil (oubli + synthèses)")
     s.add_argument("--date", help="date simulée AAAA-MM-JJ (par défaut aujourd'hui)")
     s.set_defaults(f=cmd_dormir)
+    s = sous.add_parser("installer-sommeil", help="lancer le sommeil chaque nuit (Mac)")
+    s.add_argument("--heure", type=int, default=3)
+    s.add_argument("--minute", type=int, default=30)
+    s.set_defaults(f=cmd_installer_sommeil)
     sous.add_parser("propositions", help="propositions en attente").set_defaults(f=cmd_propositions)
     for nom, f in (("valider", cmd_valider), ("refuser", cmd_refuser)):
         s = sous.add_parser(nom, help=f"{nom} une proposition")
