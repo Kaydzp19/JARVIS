@@ -500,6 +500,20 @@ def dormir(maintenant=None, projet=None, racine=None, reglages=None, fournisseur
     return bilan
 
 
+def nuit_simulee(projet, racine=None, fournisseurs=None):
+    """
+    Une nuit COMPLÈTE simulée (tri, analyse, rêve, réveil) pour la démo : la nuit qui
+    suit la dernière nuit calculée, et au moins 24 h après le dernier sommeil.
+    """
+    t = datetime.combine(synapses.prochaine_nuit(projet, racine), time(3, 0))
+    dernier = dernier_sommeil(projet, racine)
+    if dernier is not None and t - dernier < timedelta(hours=24):
+        t = dernier + timedelta(hours=24)
+    bilan = dormir(t, projet=projet, racine=racine, fournisseurs=fournisseurs)
+    return dict(bilan["projets"].get(projet, {}), nuit=t.date().isoformat(),
+                arret=bilan["arret"], appels_ia=bilan["appels_ia"])
+
+
 # ------------------------------------------------------------------
 # Planification sur Mac (launchd)
 # ------------------------------------------------------------------

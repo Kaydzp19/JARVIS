@@ -144,20 +144,18 @@ def cerveau(projet, racine=None):
 
 def simuler_nuit(projet, racine=None):
     """
-    « Simuler une nuit » : une nuit d'oubli et d'apprentissage sur les synapses
-    (oubli 0,02, apprentissage 0,10, archivage sous 0,05). Projets de DÉMO seulement,
-    pour ne jamais vieillir la vraie mémoire par un clic.
+    « Simuler une nuit » : une VRAIE nuit complète pour le projet de démo : oubli 0,02,
+    apprentissage 0,10, archivage sous 0,05, puis tri, analyse, rêve et réveil.
+    Projets de DÉMO seulement, pour ne jamais vieillir la vraie mémoire par un clic.
     """
+    from noyau import sommeil
     if not cc.projet_demo(projet, racine):
         raise PermissionError("« Simuler une nuit » est réservé aux projets de démonstration.")
-    nuit = synapses.prochaine_nuit(projet, racine)
-    bilan = synapses.appliquer_oubli(projet, nuit, racine=racine, acteur="kayd (simulation)")
-    cc.journal(projet, "nuit simulée depuis le cockpit",
-               f"{bilan['renforcees']} renforcement(s), {bilan['archivees']} archivage(s)",
-               date=nuit, racine=racine, acteur="kayd (simulation)")
-    return dict(bilan, nuit=nuit.isoformat(),
-                reglages={k: synapses.REGLAGES[k] for k in ("oubli", "apprentissage",
-                                                             "seuil_archivage")})
+    r = sommeil.nuit_simulee(projet, racine)
+    cc.journal(projet, "nuit simulée depuis le cockpit", f"nuit du {r['nuit']}",
+               racine=racine, acteur="kayd (simulation)")
+    return dict(r, reglages={k: synapses.REGLAGES[k] for k in ("oubli", "apprentissage",
+                                                                "seuil_archivage")})
 
 
 def idee_du_jour(projet, racine=None):
