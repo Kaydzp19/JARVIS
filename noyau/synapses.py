@@ -25,7 +25,7 @@ Uniquement la bibliothèque standard de Python. Aucune logique de domaine.
 
 from datetime import date as _date, timedelta
 
-from noyau import projets
+from noyau import projets, schema
 
 # ------------------------------------------------------------------
 # Réglages : le SEUL endroit où changer ces valeurs.
@@ -40,24 +40,8 @@ REGLAGES = {
 
 ACTEUR_PAR_DEFAUT = "jarvis"
 
-SCHEMA_SYNAPSES = """
-CREATE TABLE IF NOT EXISTS synapses (
-    id              INTEGER PRIMARY KEY AUTOINCREMENT,
-    note_source     INTEGER NOT NULL REFERENCES notes(id),
-    note_cible      INTEGER NOT NULL REFERENCES notes(id),
-    poids           REAL NOT NULL CHECK (poids >= 0 AND poids <= 1),
-    activations     INTEGER NOT NULL DEFAULT 0,
-    dernier_usage   TEXT,
-    archivee        INTEGER NOT NULL DEFAULT 0 CHECK (archivee IN (0, 1)),
-    oubli_calcule_jusqu_au TEXT NOT NULL,
-    UNIQUE (note_source, note_cible)
-);
-CREATE TABLE IF NOT EXISTS usages_synapses (
-    synapse_id  INTEGER NOT NULL REFERENCES synapses(id),
-    jour        TEXT NOT NULL,
-    UNIQUE (synapse_id, jour)
-);
-"""
+# La structure des tables est dans noyau/schema.py.
+
 
 
 # ------------------------------------------------------------------
@@ -80,12 +64,7 @@ def _reglages(surcharge):
 
 def _installer(conn):
     """Ajoute à la base d'un projet ce dont la marche 2 a besoin (sans rien casser)."""
-    colonnes = {r["name"] for r in conn.execute("PRAGMA table_info(notes)")}
-    if "validee" not in colonnes:
-        conn.execute(
-            "ALTER TABLE notes ADD COLUMN validee INTEGER NOT NULL DEFAULT 0 "
-            "CHECK (validee IN (0, 1))")
-    conn.executescript(SCHEMA_SYNAPSES)
+    schema.installer(conn)
 
 
 def _ouvrir(projet, racine):
