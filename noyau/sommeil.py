@@ -60,7 +60,10 @@ class Nuit:
         self.date, self.racine, self.fournisseurs = date, racine, fournisseurs
         self.plafond = (reglages.lire_nombre("SOMMEIL_PLAFOND_EUR_NUIT", 0.03)
                         if plafond is None else plafond)
-        self.cout = 0.0
+        # Le plafond vaut pour la nuit entière, même si le sommeil est relancé
+        # (réveil du Mac, ouverture de session) : on repart de ce qui a déjà été dépensé.
+        self.deja_depense = depense_de_la_nuit(date, racine)
+        self.cout = self.deja_depense
         self.appels = 0
 
     def ia(self, tache, demande, difficulte="courante", sensible=False, temperature=None):
@@ -380,6 +383,16 @@ PHASES = [("tri", phase_tri), ("analyse", phase_analyse), ("rêve", reve.phase_r
 # La nuit complète
 # ------------------------------------------------------------------
 
+def depense_de_la_nuit(date, racine=None):
+    conn = systeme.connexion(racine)
+    try:
+        r = conn.execute("SELECT COALESCE(SUM(cout), 0) FROM nuits WHERE date = ?",
+                         (jour(date).isoformat(),)).fetchone()
+        return float(r[0])
+    finally:
+        conn.close()
+
+
 def nuit_faite(projet, date, racine=None):
     conn = systeme.connexion(racine)
     try:
@@ -393,8 +406,10 @@ def _noter_nuit(projet, date, statut, cout, racine):
     conn = systeme.connexion(racine)
     try:
         with conn:
-            conn.execute("INSERT OR REPLACE INTO nuits (date, projet, statut, cout) "
-                         "VALUES (?, ?, ?, ?)", (jour(date).isoformat(), projet, statut, cout))
+            conn.execute("INSERT INTO nuits (date, projet, statut, cout) VALUES (?, ?, ?, ?) "
+                         "ON CONFLICT(date, projet) DO UPDATE SET statut = excluded.statut, "
+                         "cout = cout + excluded.cout",  # on additionne, jamais on n'efface
+                         (jour(date).isoformat(), projet, statut, cout))
     finally:
         conn.close()
 
@@ -440,7 +455,8 @@ def dormir(date=None, projet=None, racine=None, reglages=None, fournisseurs=None
         if bilan["arret"]:
             break  # plafond atteint : on n'entame pas les projets suivants
 
-    bilan["cout"] = round(nuit.cout, 4)
+    bilan["cout"] = round(nuit.cout - nuit.deja_depense, 4)
+    bilan["cout_nuit_total"] = round(nuit.cout, 4)
     bilan["appels_ia"] = nuit.appels
     return bilan
 
