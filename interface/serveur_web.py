@@ -46,7 +46,7 @@ def etat(racine=None, projet=None):
     """
     noms = cc.lister_projets(racine)
     lignes_journal, propositions, projets_info, taches = [], [], [], []
-    compte_agents = {}
+    compte_agents, dernier_agent = {}, {}
     for p in noms:
         e = cc.etat_projet(p, racine)
         projets_info.append({"nom": p, "sensible": e["sensible"],
@@ -66,9 +66,15 @@ def etat(racine=None, projet=None):
             if l["acteur"].startswith("agent:"):
                 nom = l["acteur"][6:]
                 compte_agents[nom] = compte_agents.get(nom, 0) + 1
-    lignes_journal.sort(key=lambda l: l["date"], reverse=True)
-    agents = [dict(a.decrire(), actions=compte_agents.get(n, 0))
-              for n, a in agents_mod.charger_tous(racine=racine).items()]
+                dernier_agent[nom] = l
+    lignes_journal.sort(key=lambda l: (l["date"], l.get("n", 0)), reverse=True)
+    agents = []
+    for n, a in agents_mod.charger_tous(racine=racine).items():
+        d = dernier_agent.get(n)
+        agents.append(dict(a.decrire(), actions=compte_agents.get(n, 0),
+                           etat="actif" if d else "en veille",
+                           dernier=d["evenement"] if d else None))
+    appels_mcp = [l for l in lignes_journal if l["acteur"] == "claude (MCP)"][:5]
     if projet is None:
         maintenant = orchestrateur.prochaine_action(racine)
     else:
@@ -77,6 +83,7 @@ def etat(racine=None, projet=None):
     return {
         "projet": projet,
         "mode_ia": routeur_ia.mode_ia(),
+        "corps_calleux": appels_mcp,
         "maintenant": maintenant,
         "taches": taches,
         "propositions": propositions,
@@ -112,8 +119,10 @@ def cerveau(projet, racine=None):
     equipe = agents_mod.charger_tous(racine=racine)
     actif = {"neurones": [], "synapses": []}
     ponts = []
+    actif["neurones"].append({"id": "o", "titre": "orchestrateur", "type": "orchestrateur"})
     for nom, a in equipe.items():
         actif["neurones"].append({"id": f"a:{nom}", "titre": nom, "type": "agent", "voie": a.voie})
+        actif["synapses"].append({"a": "o", "b": f"a:{nom}", "poids": 0.3})
     for t in e["taches"]:
         if t["statut"] not in orchestrateur.STATUTS_A_FAIRE:
             continue
@@ -138,7 +147,13 @@ def cerveau(projet, racine=None):
             cibles.add(p["note_cible"])
         for nid in sorted(cibles):
             ponts.append({"actif": pid, "passif": f"n{nid}"})
-    return {"projet": projet, "demo": cc.projet_demo(projet, racine),
+    toutes = synapses.lister_synapses(projet, racine)
+    compteurs = {"passifs": len(passif["neurones"]),
+                 "actifs": sum(1 for n in actif["neurones"] if n["type"] != "orchestrateur"),
+                 "synapses": len(passif["synapses"]),
+                 "archivees": sum(1 for x in toutes if x["archivee"]),
+                 "en_attente": len(e["propositions_en_attente"])}
+    return {"projet": projet, "demo": cc.projet_demo(projet, racine), "compteurs": compteurs,
             "sensible": e["sensible"], "passif": passif, "actif": actif, "ponts": ponts}
 
 
@@ -271,6 +286,14 @@ class Gestionnaire(BaseHTTPRequestHandler):
                 return self._envoyer(200, etat(self.racine, q.get("projet")))
             if url.path == "/api/reve":
                 return self._envoyer(200, idee_du_jour(q["projet"], self.racine))
+            if url.path == "/api/journal":
+                apres = int(q.get("apres", 0))
+                lignes = [dict(l, projet=q["projet"]) for l in projets.lire_journal(q["projet"], self.racine)
+                          if l["n"] > apres]
+                return self._envoyer(200, lignes[-200:])
+            if url.path == "/api/ia":
+                from noyau import routeur
+                return self._envoyer(200, routeur.etat(self.racine))
             if url.path == "/api/cerveau":
                 return self._envoyer(200, cerveau(q["projet"], self.racine))
             if url.path == "/api/graphe":

@@ -51,7 +51,13 @@ class TestCockpit(TestTemporaire):
         self.assertEqual(self.appel("/", jeton="")[0], 401)
         code, page = self.appel("/")
         self.assertEqual(code, 200)
-        self.assertIn("J.A.R.V.I.S.", page)
+        self.assertIn("J.A.R.V.I.S", page)
+        # Contrat de design : palette, polices, écrans et libellés.
+        for attendu in ("#030811", "#5CE1FF", "#E6F7FF", "#86A9BC", "#FFB547", "Rajdhani",
+                        "JetBrains Mono", 'id="ecran-cerveau"', 'id="ecran-cockpit"',
+                        "Simuler une nuit", "PASSIF", "ACTIF", "Ordre du moment",
+                        "Garde d’écriture", "Agents · 4 voies", "three@0.160.0"):
+            self.assertIn(attendu, page)
 
     def test_note_avec_lien_fait_apparaitre_un_neurone_relie(self):
         self.json("/api/projet", {"nom": "A"})
@@ -75,7 +81,7 @@ class TestCockpit(TestTemporaire):
         self.assertEqual({p["nom"] for p in etat["projets"]}, {"Projet A", "Projet B"})
         self.assertIsNotNone(etat["maintenant"])
         types = {p["type"] for p in etat["propositions"]}
-        self.assertEqual(types, {"note", "synthese", "modification"})
+        self.assertTrue({"note", "synthese", "modification"} <= types, types)
         self.assertEqual(etat["budget"]["depense"], 0)
         self.assertGreater(len(etat["journal"]), 10)
 
@@ -124,7 +130,9 @@ class TestCerveauEtNuit(TestCockpit):
         self.assertEqual(passif, {"Budget", "Plan"})
         self.assertEqual(len(c["passif"]["synapses"]), 1)
         types = {n["type"] for n in c["actif"]["neurones"]}
-        self.assertEqual(types, {"agent", "tache", "proposition"})
+        self.assertEqual(types, {"orchestrateur", "agent", "tache", "proposition"})
+        self.assertEqual(c["compteurs"]["passifs"], 2)
+        self.assertEqual(c["compteurs"]["en_attente"], 1)
         voies = {n["voie"] for n in c["actif"]["neurones"] if n["type"] == "agent"}
         self.assertEqual(voies, {"planifier", "proposer", "comparer", "verifier"})
         prop = next(n for n in c["actif"]["neurones"] if n["type"] == "proposition")
@@ -163,3 +171,28 @@ class TestCerveauEtNuit(TestCockpit):
         code, texte = self.appel("/api/nuit", {"projet": "Projet A"})
         self.assertEqual(code, 400)
         self.assertIn("démonstration", texte)
+
+
+class TestDirect(TestCockpit):
+    """Journal en direct, état des IA, activité des agents."""
+
+    def test_journal_en_direct(self):
+        from noyau import corps_calleux as cc
+        from noyau import projets
+        projets.creer_projet("Projet A", racine=self.racine)
+        tout = self.json("/api/journal?projet=Projet%20A")
+        dernier = tout[-1]["n"]
+        cc.journal("Projet A", "nouvel événement", "test", racine=self.racine)
+        nouveau = self.json(f"/api/journal?projet=Projet%20A&apres={dernier}")
+        self.assertEqual([l["evenement"] for l in nouveau], ["nouvel événement"])
+
+    def test_etat_ia_et_agents(self):
+        from noyau import projets
+        projets.creer_projet("Projet A", racine=self.racine)
+        ia = self.json("/api/ia")
+        self.assertEqual(ia["mode"], "simule")
+        self.assertEqual(ia["budget"]["plafond"], 5.0)
+        e = self.json("/api/etat?projet=Projet%20A")
+        self.assertTrue(all(a["etat"] in ("actif", "en veille") for a in e["agents"]))
+        self.assertEqual({a["voie"] for a in e["agents"]},
+                         {"planifier", "proposer", "comparer", "verifier"})
