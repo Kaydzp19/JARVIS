@@ -110,6 +110,12 @@ class Contexte:
         corps_calleux.journal(projet, evenement, raison, racine=self._racine,
                               acteur=f"module:{self.nom}")
 
+    def afficher(self, texte):
+        """Écrire dans la console (le Terminal), si la fiche du module le déclare."""
+        if "console" not in self._ecrit:
+            raise PermissionError(f"Le module {self.nom} n'a pas déclaré écrire dans la console.")
+        print(texte, flush=True)
+
     def aujourd_hui(self):
         return jour().isoformat()
 

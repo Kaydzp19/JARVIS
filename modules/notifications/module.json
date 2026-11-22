@@ -1,9 +1,9 @@
 {
   "nom": "notifications",
-  "description": "Prévient Kayd quand une tâche est prête (contrat d'action) ou terminée (Fait / Pas fait).",
-  "version": "0.1",
+  "description": "Annonce dans la console chaque tâche prête et chaque Fait / Pas fait.",
+  "version": "0.2",
   "lit": ["taches"],
-  "ecrit": ["journal", "boite"],
-  "demande": ["TELEGRAM_JETON", "TELEGRAM_CHAT_ID"],
+  "ecrit": ["console", "journal", "boite"],
+  "demande": [],
   "evenements": ["contrat_pret", "tache_terminee"]
 }

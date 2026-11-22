@@ -63,9 +63,45 @@ class TestModules(TestTemporaire):
         self.assertEqual(self.boite(), [])
 
     def test_mode_reel_exige_ses_reglages(self):
+        exigeant = self.dossier_modules / "exigeant"
+        exigeant.mkdir()
+        (exigeant / "module.json").write_text(
+            '{"nom": "exigeant", "evenements": [], "ecrit": [], "demande": ["JETON_SERVICE"]}')
+        (exigeant / "module.py").write_text("def recevoir(e, d, c):\n    return None\n")
         with self.assertRaises(ValueError) as e:
-            modules.activer("notifications", "REEL", racine=self.racine)
-        self.assertIn("TELEGRAM_JETON", str(e.exception))
+            modules.activer("exigeant", "REEL", racine=self.racine)
+        self.assertIn("JETON_SERVICE", str(e.exception))
+        modules.activer("exigeant", "DEMO", racine=self.racine)  # la démo n'exige rien
+
+    def test_fait_pas_fait_annonces_en_console(self):
+        import io
+        from contextlib import redirect_stdout
+        modules.activer("notifications", "DEMO", racine=self.racine)
+        with redirect_stdout(io.StringIO()) as console:
+            orchestrateur.tour(JOUR_1, racine=self.racine)
+            tid = projets.lister_taches("A", racine=self.racine)[0]["id"]
+            orchestrateur.terminer("A", tid, True, racine=self.racine)
+        sortie = console.getvalue()
+        self.assertIn("[JARVIS · notification] Nouvelle tâche prête [A] : Tâche test", sortie)
+        self.assertIn(f"Tâche {tid} [A] : FAIT.", sortie)
+        modules.desactiver("notifications", racine=self.racine)
+        with redirect_stdout(io.StringIO()) as console:
+            t2 = projets.creer_tache("A", "Autre", racine=self.racine)
+            orchestrateur.terminer("A", t2, False, racine=self.racine)
+        self.assertEqual(console.getvalue(), "")  # module retiré : plus rien
+
+    def test_un_module_n_ecrit_que_ce_qu_il_declare(self):
+        muet = self.dossier_modules / "muet"
+        muet.mkdir()
+        (muet / "module.json").write_text(
+            '{"nom": "muet", "evenements": ["contrat_pret"], "ecrit": []}')
+        (muet / "module.py").write_text("def recevoir(e, d, c):\n    c.afficher('coucou')\n")
+        modules.activer("muet", "DEMO", racine=self.racine)
+        r = modules.emettre("contrat_pret", {"projet": "A", "quoi": "x", "duree_totale_min": 1},
+                            racine=self.racine)
+        muet_r = next(x for x in r if x["module"] == "muet")
+        self.assertFalse(muet_r["ok"])
+        self.assertIn("console", muet_r["erreur"])
 
     def test_module_en_panne_ne_bloque_pas_le_noyau(self):
         casse = self.dossier_modules / "casse"
