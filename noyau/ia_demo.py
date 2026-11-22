@@ -53,7 +53,27 @@ def trier(demande, temperature):
     return {"doublons": doublons, "orphelines": orphelines, "perimees": perimees}
 
 
-TACHES = {"synthetiser": synthetiser, "trier": trier}
+def resumer(demande, temperature):
+    s = demande.get("statistiques", {})
+    notes = demande.get("notes", [])
+    phrases = [f"Le projet compte {s.get('notes', 0)} note(s), dont {s.get('notes_validees', 0)} "
+               f"validée(s), reliées par {s.get('synapses_actives', 0)} synapse(s) active(s)."]
+    if s.get("notes_centrales"):
+        phrases.append("Notes centrales : " + ", ".join(s["notes_centrales"]) + ".")
+    mots = _frequents([n.get("titre", "") + " " + n.get("extrait", "") for n in notes])
+    if mots:
+        phrases.append("Thèmes dominants : " + ", ".join(mots) + ".")
+    phrases.append(f"{s.get('taches_a_faire', 0)} tâche(s) à faire, "
+                   f"{s.get('taches_faites', 0)} faite(s), "
+                   f"{s.get('propositions_en_attente', 0)} proposition(s) en attente de validation.")
+    if s.get("propositions_en_attente"):
+        phrases.append("Prochaine étape utile : trier les propositions en attente.")
+    elif s.get("taches_a_faire"):
+        phrases.append("Prochaine étape utile : avancer la tâche la plus urgente.")
+    return {"resume": " ".join(phrases)}
+
+
+TACHES = {"synthetiser": synthetiser, "trier": trier, "resumer": resumer}
 
 
 def repondre(tache, texte, temperature=None):

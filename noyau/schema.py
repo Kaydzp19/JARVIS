@@ -23,6 +23,13 @@ CREATE TABLE IF NOT EXISTS usages_synapses (
     jour        TEXT NOT NULL,
     UNIQUE (synapse_id, jour)
 );
+CREATE TABLE IF NOT EXISTS analyses (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    date           TEXT NOT NULL,
+    resume         TEXT NOT NULL,
+    stats          TEXT NOT NULL,
+    jetons_envoyes INTEGER NOT NULL
+);
 CREATE TABLE IF NOT EXISTS propositions (
     id           INTEGER PRIMARY KEY AUTOINCREMENT,
     type         TEXT NOT NULL,

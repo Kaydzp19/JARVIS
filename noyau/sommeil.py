@@ -257,7 +257,82 @@ def _proposer_tri(ctx, notes, d):
 # Phase 2 : analyse
 # ------------------------------------------------------------------
 
+def statistiques(ctx):
+    """Le portrait du projet, calculé par le code seul (aucune IA)."""
+    notes = ctx.notes()
+    toutes_syn = synapses.lister_synapses(ctx.projet, ctx.racine)
+    actives = [s for s in toutes_syn if not s["archivee"]]
+    etat = corps_calleux.etat_projet(ctx.projet, ctx.racine)
+    partageables = [n for n in notes if not n["sensible"] and not ctx.sensible_projet]
+    return {
+        "notes": len(notes),
+        "notes_sensibles": sum(1 for n in notes if n["sensible"]) if not ctx.sensible_projet
+        else len(notes),
+        "notes_validees": sum(1 for n in notes if n["validee"]),
+        "synapses_actives": len(actives),
+        "synapses_archivees": len(toutes_syn) - len(actives),
+        "poids_moyen": round(sum(s["poids"] for s in actives) / len(actives), 3) if actives else 0,
+        "notes_centrales": [n["titre"] for n in sorted(partageables, key=lambda n: -n["poids"])[:5]
+                            if n["poids"] > 0],
+        "taches_a_faire": sum(1 for t in etat["taches"] if t["statut"] in ("à faire", "pas fait")),
+        "taches_faites": sum(1 for t in etat["taches"] if t["statut"] == "fait"),
+        "propositions_en_attente": len(etat["propositions_en_attente"]),
+        "groupes_tres_lies": len(trouver_groupes(ctx.projet, ctx.racine, ctx.r)),
+    }
+
+
+def demande_resume(stats, notes, max_jetons):
+    """
+    Prépare la demande de résumé sans dépasser max_jetons (≈ 4 caractères par jeton) :
+    on retire d'abord les notes les moins reliées, puis on raccourcit les extraits.
+    """
+    notes = sorted(notes, key=lambda n: -n["poids"])
+    limite = max_jetons * 4
+    taille_extrait = 200
+
+    def construire():
+        return {"consigne": ("Résume ce projet en 5 phrases au plus : où il en est, ce qui "
+                             "avance, ce qui bloque, et la prochaine étape utile."),
+                "statistiques": stats,
+                "notes": [{"titre": n["titre"], "extrait": n["extrait"][:taille_extrait]}
+                          for n in notes]}
+
+    demande = construire()
+    while len(json.dumps(demande, ensure_ascii=False)) > limite:
+        if taille_extrait > 60:
+            taille_extrait -= 40
+        elif notes:
+            notes.pop()
+        else:
+            break  # les statistiques seules : toujours petites
+        demande = construire()
+    return demande
+
+
 def phase_analyse(ctx):
+    # 1. Résumé du projet entier : code (statistiques) puis IA légère.
+    stats = statistiques(ctx)
+    max_jetons = int(reglages.lire_nombre("ANALYSE_MAX_TOKENS", 1500))
+    demande = demande_resume(stats, ctx.notes_partageables(), max_jetons)
+    texte = json.dumps(demande, ensure_ascii=False)
+    reponse = ctx.nuit.ia("resumer", demande, "courante", sensible=ctx.sensible_projet,
+                          temperature=0.3)
+    resume = (reponse["donnees"] or {}).get("resume") or reponse["reponse"]
+    conn = projets._connexion(ctx.projet, ctx.racine)
+    try:
+        with conn:
+            conn.execute("INSERT INTO analyses (date, resume, stats, jetons_envoyes) "
+                         "VALUES (?, ?, ?, ?)",
+                         (ctx.date.isoformat(), resume, json.dumps(stats, ensure_ascii=False),
+                          len(texte) // 4))
+    finally:
+        conn.close()
+    ctx.journal("sommeil · analyse (résumé)",
+                f"{stats['notes']} note(s), {stats['synapses_actives']} synapse(s) active(s) ; "
+                f"résumé de {len(resume)} caractères, {len(texte) // 4} jeton(s) envoyé(s) "
+                f"sur {max_jetons} permis")
+
+    # 2. Synthèses proposées pour les groupes de notes très liées.
     notes = {n["id"]: n for n in ctx.notes()}
     proposees = []
     for g in trouver_groupes(ctx.projet, ctx.racine, ctx.r):
@@ -279,8 +354,20 @@ def phase_analyse(ctx):
         pid = ctx.agent.proposer(ctx.projet, "synthese", contenu, liens=titres,
                                  titre=f"Synthèse : {', '.join(titres)}"[:80], raison=raison)
         proposees.append(pid)
-    ctx.journal("sommeil · analyse", f"{len(proposees)} synthèse(s) proposée(s)")
-    return {"syntheses_proposees": proposees}
+    ctx.journal("sommeil · analyse (synthèses)", f"{len(proposees)} synthèse(s) proposée(s)")
+    return {"syntheses_proposees": proposees, "resume": resume}
+
+
+def dernier_resume(projet, racine=None):
+    """Le résumé de la dernière nuit (pour le cockpit), ou None."""
+    conn = projets._connexion(projet, racine)
+    try:
+        r = conn.execute("SELECT * FROM analyses ORDER BY id DESC LIMIT 1").fetchone()
+    finally:
+        conn.close()
+    if r is None:
+        return None
+    return dict(r, stats=json.loads(r["stats"]))
 
 
 PHASES = [("tri", phase_tri), ("analyse", phase_analyse)]
