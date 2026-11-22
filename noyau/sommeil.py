@@ -60,6 +60,7 @@ class Nuit:
         self.racine, self.fournisseurs = racine, fournisseurs
         self.cout = 0.0
         self.appels = 0
+        self.local = self.modele_local_disponible()
 
     def modele_local_disponible(self):
         f = (self.fournisseurs or routeur_ia.fournisseurs_par_defaut()).get("local")
@@ -73,6 +74,8 @@ class Nuit:
         Le budget IA mensuel du routeur s'applique toujours.
         """
         texte = json.dumps(demande, ensure_ascii=False)
+        if sensible and not self.local:
+            raise RuntimeError("Note sensible sans modèle local : envoi refusé.")  # garde-fou
         r = routeur_ia.demander_ia(tache, texte, difficulte, sensible, date=self.date,
                                    racine=self.racine, fournisseurs=self.fournisseurs,
                                    temperature=temperature, payant_autorise=payant_autorise)
@@ -102,6 +105,7 @@ class Contexte:
         self.maintenant = nuit.maintenant
         self.r = reglages_sommeil
         self.sensible_projet = corps_calleux.projet_sensible(projet, self.racine)
+        self.local = nuit.local  # modèle local (Ollama) disponible cette nuit ?
         self.agent = agents_mod.charger("synthetiseur", racine=self.racine, date=self.date)
 
     def journal(self, evenement, raison=None):
@@ -112,11 +116,22 @@ class Contexte:
         """Toutes les notes du projet (id, titre, extrait, poids, sensible…)."""
         return corps_calleux.se_souvenir(self.projet, "", 50, racine=self.racine)
 
+    def est_sensible(self, note):
+        return self.sensible_projet or bool(note["sensible"])
+
     def notes_partageables(self):
-        """Notes qui peuvent être envoyées à l'IA : jamais les sensibles."""
-        if self.sensible_projet:
-            return []
-        return [n for n in self.notes() if not n["sensible"]]
+        """
+        Notes qui peuvent être envoyées à l'IA pendant le sommeil :
+        - avec un modèle local disponible : toutes (les sensibles iront au local) ;
+        - sans modèle local : jamais les sensibles (elles sont exclues du rêve).
+        """
+        if self.local:
+            return self.notes()
+        return [n for n in self.notes() if not self.est_sensible(n)]
+
+    def contient_sensible(self, notes):
+        """Vrai si l'envoi contient une note sensible : le routeur n'utilisera que le local."""
+        return any(self.est_sensible(n) for n in notes)
 
 
 # ------------------------------------------------------------------
@@ -174,7 +189,7 @@ def phase_tri(ctx):
     notes = ctx.notes_partageables()
     if not notes:
         ctx.journal("sommeil · tri (IA)", "rien à envoyer : aucune note partageable "
-                    "(les notes sensibles sont exclues)")
+                    "(sans modèle local, les notes sensibles sont exclues)")
         return dict(oubli, tri_propositions=[])
     liens = {}
     for s in synapses.lister_synapses(ctx.projet, ctx.racine, avec_archivees=False):
@@ -195,7 +210,8 @@ def phase_tri(ctx):
                    "liens_actifs": liens.get(n["id"], 0), "modifiee_le": dates[n["id"]]}
                   for n in notes],
     }
-    reponse = ctx.nuit.ia("trier", demande, "courante", sensible=False, temperature=0.1)
+    reponse = ctx.nuit.ia("trier", demande, "courante", sensible=ctx.contient_sensible(notes),
+                          temperature=0.1)
     d = reponse["donnees"] or {}
     proposees = _proposer_tri(ctx, notes, d)
     ctx.journal("sommeil · tri (IA)",
@@ -269,7 +285,7 @@ def statistiques(ctx):
     toutes_syn = synapses.lister_synapses(ctx.projet, ctx.racine)
     actives = [s for s in toutes_syn if not s["archivee"]]
     etat = corps_calleux.etat_projet(ctx.projet, ctx.racine)
-    partageables = [n for n in notes if not n["sensible"] and not ctx.sensible_projet]
+    partageables = ctx.notes_partageables()
     return {
         "notes": len(notes),
         "notes_sensibles": sum(1 for n in notes if n["sensible"]) if not ctx.sensible_projet
@@ -319,11 +335,20 @@ def phase_analyse(ctx):
     # 1. Résumé du projet entier : code (statistiques) puis IA légère.
     stats = statistiques(ctx)
     max_jetons = int(reglages.lire_nombre("tokens_max_analyse", 1500))
-    demande = demande_resume(stats, ctx.notes_partageables(), max_jetons)
+    a_envoyer = ctx.notes_partageables()
+    demande = demande_resume(stats, a_envoyer, max_jetons)
     texte = json.dumps(demande, ensure_ascii=False)
-    reponse = ctx.nuit.ia("resumer", demande, "courante", sensible=ctx.sensible_projet,
-                          temperature=0.3)
-    resume = (reponse["donnees"] or {}).get("resume") or reponse["reponse"]
+    if ctx.sensible_projet and not ctx.local:
+        # Projet sensible sans modèle local : rien ne sort, même pas les statistiques.
+        texte = ""
+        resume = (f"Résumé par le code seul (projet sensible, pas de modèle local) : "
+                  f"{stats['notes']} note(s), {stats['synapses_actives']} synapse(s) active(s), "
+                  f"{stats['taches_a_faire']} tâche(s) à faire, "
+                  f"{stats['propositions_en_attente']} proposition(s) en attente.")
+    else:
+        reponse = ctx.nuit.ia("resumer", demande, "courante",
+                              sensible=ctx.contient_sensible(a_envoyer), temperature=0.3)
+        resume = (reponse["donnees"] or {}).get("resume") or reponse["reponse"]
     conn = projets._connexion(ctx.projet, ctx.racine)
     try:
         with conn:
@@ -339,18 +364,19 @@ def phase_analyse(ctx):
                 f"sur {max_jetons} permis")
 
     # 2. Synthèses proposées pour les groupes de notes très liées.
-    notes = {n["id"]: n for n in ctx.notes()}
+    notes = {n["id"]: n for n in ctx.notes_partageables()}
     proposees = []
     for g in trouver_groupes(ctx.projet, ctx.racine, ctx.r):
         signature = ",".join(str(i) for i in g["notes"])
         if deja_propose(ctx.projet, f"groupe {signature} :", ctx.racine):
             continue
         membres = [notes[i] for i in g["notes"] if i in notes]
+        if len(membres) < ctx.r["taille_min_groupe"]:
+            continue  # groupe surtout fait de notes sensibles, sans modèle local : on passe
         titres = [m["titre"] for m in membres]
-        sensible = ctx.sensible_projet or any(m["sensible"] for m in membres)
+        sensible = ctx.contient_sensible(membres)
         demande = {"consigne": "Résume en deux phrases ce qui relie ces notes.",
-                   "notes": [{"titre": m["titre"],
-                              "extrait": "" if m["sensible"] else m["extrait"]} for m in membres]}
+                   "notes": [{"titre": m["titre"], "extrait": m["extrait"]} for m in membres]}
         reponse = ctx.nuit.ia("synthetiser", demande, "courante", sensible)
         resume = (reponse["donnees"] or {}).get("resume") or reponse["reponse"]
         contenu = (f"# Synthèse : {', '.join(titres)}\n\n{resume}\n\n"

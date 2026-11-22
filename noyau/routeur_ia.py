@@ -19,6 +19,7 @@ fournisseurs sont déclarés mais « non branchés » : le routeur les ignore
 tant que leur code et leur clé ne sont pas en place.
 """
 
+import json
 import re
 from collections import Counter
 
@@ -106,9 +107,58 @@ class ClaudeAPI(Fournisseur):
 
 
 class ModeleLocal(Fournisseur):
+    """
+    Modèle local via Ollama (programme gratuit qui fait tourner une IA sur le Mac).
+    Disponible seulement si « modele_local » est renseigné dans les réglages ET
+    qu'Ollama répond sur la machine avec ce modèle installé. Rien ne sort du Mac.
+    """
     nom = "local"
     local = True
-    branche = False  # marche 9 (Ollama)
+    branche = True
+    _cache = {}  # (adresse, modèle) -> (instant, disponible) : on ne vérifie qu'une fois par minute
+
+    @staticmethod
+    def _ouvreur():
+        import urllib.request
+        return urllib.request.build_opener(urllib.request.ProxyHandler({}))  # jamais de proxy
+
+    def modele(self):
+        m = (reglages.lire("modele_local") or "").strip()
+        return None if m.lower() in ("", "aucun", "none", "non") else m
+
+    def adresse(self):
+        return reglages.lire("ollama_url").rstrip("/")
+
+    def disponible(self):
+        import time as _time
+        m = self.modele()
+        if not m:
+            return False
+        cle = (self.adresse(), m)
+        vu = self._cache.get(cle)
+        if vu and _time.monotonic() - vu[0] < 60:
+            return vu[1]
+        try:
+            with self._ouvreur().open(self.adresse() + "/api/tags", timeout=2) as r:
+                noms = [x.get("name", "") for x in json.loads(r.read()).get("models", [])]
+            ok = any(n == m or n.startswith(m + ":") for n in noms)
+        except Exception:
+            ok = False
+        self._cache[cle] = (_time.monotonic(), ok)
+        return ok
+
+    def repondre(self, tache, texte, temperature=None):
+        import urllib.request
+        corps = {"model": self.modele(), "prompt": texte, "stream": False, "options": {}}
+        if temperature is not None:
+            corps["options"]["temperature"] = temperature
+        if texte.lstrip().startswith("{"):
+            corps["format"] = "json"  # demandes du sommeil : réponse en JSON
+        req = urllib.request.Request(self.adresse() + "/api/generate",
+                                     data=json.dumps(corps).encode("utf-8"),
+                                     headers={"Content-Type": "application/json"})
+        with self._ouvreur().open(req, timeout=600) as r:
+            return json.loads(r.read()).get("response", "")
 
 
 def fournisseurs_par_defaut():
@@ -125,12 +175,13 @@ def choisir(difficulte, sensible, fournisseurs, payant_autorise=True):
         return (f is not None and f.disponible()
                 and (payant_autorise or not f.payant))
 
+    # Le modèle local passe toujours en premier quand il est disponible.
     if sensible:
-        ordre = ["local", "demo"]           # jamais une offre gratuite en ligne
+        ordre = ["local", "demo"]           # jamais une offre en ligne (gratuite ou payante)
     elif difficulte == "critique":
-        ordre = ["claude", "gemini", "local", "demo"]
+        ordre = ["claude", "local", "gemini", "demo"]
     else:
-        ordre = ["gemini", "local", "demo"]
+        ordre = ["local", "gemini", "demo"]
     for nom in ordre:
         if ok(nom):
             f = fournisseurs[nom]

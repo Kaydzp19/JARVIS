@@ -217,7 +217,7 @@ def phase_reve(ctx, rejets=None):
     notes = ctx.notes_partageables()
     if len(notes) < 2:
         ctx.journal("sommeil · rêve", "pas assez de notes partageables pour rêver "
-                    "(les notes sensibles sont exclues)")
+                    "(sans modèle local, les notes sensibles sont exclues)")
         return {"idees_revees": 0}
     par_id = {n["id"]: n for n in notes}
     combos = tirer_combinaisons(notes, poids_entre(ctx.projet, ctx.racine),
@@ -226,7 +226,7 @@ def phase_reve(ctx, rejets=None):
     if not combos:
         ctx.journal("sommeil · rêve", "aucune paire de notes éloignées : toutes sont déjà liées")
         return {"idees_revees": 0}
-    nb = _reglage(ctx, "nb_idees")
+    nb = int(ctx.r.get("nb_idees") or reglages.lire_nombre("candidates_par_nuit", 5))
     demande = {
         "consigne": (f"Tu rêves. Croise ces notes qui n'ont presque rien à voir entre elles et "
                      f"imagine environ {nb} idées nouvelles, concrètes et surprenantes. Pour chaque "
@@ -240,7 +240,8 @@ def phase_reve(ctx, rejets=None):
                          for c in combos],
         "idees_rejetees": rejets or [],
     }
-    reponse = ctx.nuit.ia("rever", demande, "courante", sensible=False,
+    utilisees = [par_id[i] for c in combos for i in c]
+    reponse = ctx.nuit.ia("rever", demande, "courante", sensible=ctx.contient_sensible(utilisees),
                           temperature=_reglage(ctx, "temperature_reve"))
     idees = []
     for item in (reponse["donnees"] or {}).get("idees", []):
@@ -254,6 +255,7 @@ def phase_reve(ctx, rejets=None):
         except (TypeError, ValueError):
             cout = 0.0
         idees.append({"idee": texte, "sources": sorted(set(sources)),
+                      "sensible": ctx.contient_sensible([par_id[i] for i in set(sources)]),
                       "sources_titres": [par_id[i]["titre"] for i in sorted(set(sources))],
                       "effort": effort, "cout_estime_eur": cout})
     ctx.idees, ctx.combinaisons = idees, combos
@@ -268,13 +270,23 @@ def phase_reve(ctx, rejets=None):
 # ------------------------------------------------------------------
 
 def phase_reveil(ctx, rejets=None):
-    """Une IA rigoureuse note les idées ; on ne garde que la meilleure (ou aucune)."""
+    """
+    Une IA rigoureuse note les idées ; on garde les meilleures (idees_par_projet,
+    1 par défaut), au-dessus du score minimum. Renvoie {"reve": id ou None, "reves": [ids]}.
+    """
     idees = getattr(ctx, "idees", [])
     if rejets is None:
         rejets = rejets_recents(ctx.projet, ctx.racine)
     if not idees:
         ctx.journal("sommeil · réveil", "aucune idée à évaluer cette nuit")
-        return {"reve": None}
+        return {"reve": None, "reves": []}
+
+    # Cloud payant : seulement ici, seulement si cloud_pour_reveil=true, et jamais pour
+    # une idée née d'une note sensible (l'évaluation reste alors sur le modèle local).
+    sensible = any(i["sensible"] for i in idees)
+    cloud = reglages.lire_booleen("cloud_pour_reveil") and not sensible
+    titres = [n["titre"] for n in ctx.notes_partageables()
+              if sensible or not ctx.est_sensible(n)]  # vers le cloud : aucun titre sensible
     anciens = lister(ctx.projet, racine=ctx.racine)
     demande = {
         "consigne": ("Tu es un évaluateur rigoureux et exigeant. Note chaque idée de 0 à 10 sur : "
@@ -284,12 +296,14 @@ def phase_reveil(ctx, rejets=None):
                      '{"evaluations": [{"index": 0, "nouveaute": 0, "utilite": 0, '
                      '"faisabilite": 0, "justification": "..."}]}'),
         "contraintes": contraintes(),
-        "idees": [dict(idee, index=i) for i, idee in enumerate(idees)],
-        "titres_existants": [n["titre"] for n in ctx.notes_partageables()],
+        "idees": [{k: v for k, v in dict(idee, index=i).items() if k != "sensible"}
+                  for i, idee in enumerate(idees)],
+        "titres_existants": titres,
         "idees_deja_vues": [a["idee"] for a in anciens],
         "idees_rejetees": rejets or [],
     }
-    reponse = ctx.nuit.ia("evaluer", demande, "difficile", sensible=False,
+    reponse = ctx.nuit.ia("evaluer", demande, "critique" if cloud else "difficile",
+                          sensible=sensible, payant_autorise=cloud,
                           temperature=_reglage(ctx, "temperature_reveil"))
     notees = []
     for ev in (reponse["donnees"] or {}).get("evaluations", []):
@@ -299,23 +313,31 @@ def phase_reveil(ctx, rejets=None):
                        for k in ("nouveaute", "utilite", "faisabilite"))
         except (KeyError, TypeError, ValueError):
             continue
-        if 0 <= i < len(idees):
+        if 0 <= i < len(idees) and i not in {x[1] for x in notees}:
             notees.append((round((n + u + f) / 3, 1), i,
                            {"nouveaute": n, "utilite": u, "faisabilite": f},
                            str(ev.get("justification") or "")))
     if not notees:
         ctx.journal("sommeil · réveil", "évaluation illisible : aucune idée gardée")
-        return {"reve": None}
-    score, i, details, justification = max(notees, key=lambda t: (t[0], -t[1]))
-    if score < _reglage(ctx, "score_min"):
+        return {"reve": None, "reves": []}
+
+    nombre = max(1, int(ctx.r.get("idees_par_projet") or reglages.lire_nombre("idees_par_projet", 1)))
+    minimum = _reglage(ctx, "score_min")
+    meilleures = [t for t in sorted(notees, key=lambda t: (-t[0], t[1])) if t[0] >= minimum][:nombre]
+    if not meilleures:
         ctx.journal("sommeil · réveil",
-                    f"aucune idée assez bonne (meilleur score {score}/10, minimum "
-                    f"{_reglage(ctx, 'score_min')})")
-        return {"reve": None}
-    details = dict(details, effort=idees[i]["effort"], cout_estime_eur=idees[i]["cout_estime_eur"],
-                   idees_evaluees=len(notees), ia=reponse["fournisseur"])
-    rid = _enregistrer(ctx, idees[i], score, details, justification)
-    ctx.journal("sommeil · réveil",
-                f"idée n°{rid} gardée sur {len(notees)} (score {score}/10) : {idees[i]['idee']} "
-                f"— sources : {', '.join(idees[i]['sources_titres'])} — {justification}")
-    return {"reve": rid}
+                    f"aucune idée assez bonne (meilleur score {max(t[0] for t in notees)}/10, "
+                    f"minimum {minimum})")
+        return {"reve": None, "reves": []}
+    gardes = []
+    for score, i, details, justification in meilleures:
+        details = dict(details, effort=idees[i]["effort"],
+                       cout_estime_eur=idees[i]["cout_estime_eur"],
+                       idees_evaluees=len(notees), ia=reponse["fournisseur"])
+        rid = _enregistrer(ctx, idees[i], score, details, justification)
+        gardes.append(rid)
+        ctx.journal("sommeil · réveil",
+                    f"idée n°{rid} gardée sur {len(notees)} (score {score}/10, évaluée par "
+                    f"{reponse['fournisseur']}) : {idees[i]['idee']} — sources : "
+                    f"{', '.join(idees[i]['sources_titres'])} — {justification}")
+    return {"reve": gardes[0], "reves": gardes}
