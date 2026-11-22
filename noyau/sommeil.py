@@ -2,7 +2,7 @@
 Sommeil et rêve de JARVIS (marche 6).
 
     python3 jarvis.py dormir            tous les projets
-    python3 jarvis.py dormir Demo-A     un seul projet
+    python3 jarvis.py dormir "Projet A"   un seul projet
 
 Commande AUTONOME : n'importe quel déclencheur peut l'appeler (aujourd'hui la
 tâche planifiée du Mac, plus tard un mode nuit ou un serveur). Règle des 24 h :

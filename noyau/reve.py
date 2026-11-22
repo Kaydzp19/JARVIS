@@ -108,7 +108,7 @@ def idee_du_jour(projet, racine=None):
 
 def trouver(identifiant, racine=None):
     """
-    « Demo-A:3 » ou « 3 ». Renvoie (projet, id). Un simple numéro doit être
+    « Projet A:3 » ou « 3 ». Renvoie (projet, id). Un simple numéro doit être
     sans ambiguïté (un seul projet a un rêve avec ce numéro).
     """
     texte = str(identifiant)

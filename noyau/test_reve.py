@@ -226,12 +226,41 @@ class TestModeDemo(TestTemporaire):
         sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "exemples"))
         import demo
         demo.creer_demo(racine=self.racine, bavard=False)
-        idees = reve.lister("Demo-A", racine=self.racine)
+        idees = reve.lister("Projet A", racine=self.racine)
         self.assertEqual(len(idees), 1)
-        self.assertEqual(reve.lister("Demo-B", racine=self.racine), [])  # projet sensible
-        raisons = [p["raison"] for p in cc.lister_propositions("Demo-A", racine=self.racine)]
+        self.assertEqual(reve.lister("Projet B", racine=self.racine), [])  # projet sensible
+        raisons = [p["raison"] for p in cc.lister_propositions("Projet A", racine=self.racine)]
         self.assertTrue(any(r.startswith("tri:doublon") for r in raisons), raisons)
         self.assertTrue(any(r.startswith("tri:perimee") for r in raisons), raisons)
-        self.assertIsNotNone(sommeil.dernier_resume("Demo-A", racine=self.racine))
+        self.assertIsNotNone(sommeil.dernier_resume("Projet A", racine=self.racine))
         from noyau import routeur_ia
         self.assertEqual(routeur_ia.depense_du_mois(racine=self.racine), 0)
+
+
+class TestScriptDemo(TestTemporaire):
+
+    def test_demo_cree_deux_projets_fictifs_dans_son_dossier(self):
+        import io
+        import os
+        import sys
+        from contextlib import redirect_stdout
+        from pathlib import Path
+        sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "exemples"))
+        import demo
+        dossier = self.racine / "demo"
+        with redirect_stdout(io.StringIO()) as sortie:
+            demo.main(["--sans-interface", "--dossier", str(dossier)])
+        self.assertIn("Projet A", sortie.getvalue())
+        self.assertTrue((dossier / "projets" / "Projet A" / "DEMO").exists())
+        self.assertTrue((dossier / "projets" / "Projet B" / "SENSIBLE").exists())
+        self.assertFalse((self.racine / "projets").exists())  # rien dans les « vrais » projets
+        os.environ["DOSSIER_DONNEES"] = str(dossier)
+        self.assertEqual(projets.lister_projets(), ["Projet A", "Projet B"])
+        notes = projets.lister_notes("Projet A")
+        self.assertTrue(any(n["validee"] for n in notes))
+        self.assertTrue(cc.lister_propositions("Projet A", "en attente"))
+        self.assertTrue(sommeil.dernier_sommeil("Projet A"))
+        # Relancer la démo réutilise ce qui existe (pas de doublon).
+        with redirect_stdout(io.StringIO()):
+            demo.main(["--sans-interface", "--dossier", str(dossier)])
+        self.assertEqual(len(projets.lister_notes("Projet A")), len(notes))

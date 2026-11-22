@@ -3,17 +3,17 @@
 JARVIS : la commande principale (la « télécommande »).
 
 Exemples (depuis le dossier du dépôt) :
-    python3 jarvis.py demo         crée les projets de démonstration Demo-A et Demo-B
+    python3 jarvis.py demo         démo (Projet A, Projet B, fausses données) + interface
     python3 jarvis.py cockpit      ouvre le cockpit web (cerveau 3D, tâches, propositions)
     python3 jarvis.py maintenant   affiche ce qu'il faut faire maintenant
     python3 jarvis.py tour         un tour de l'orchestrateur (observer, décider, agir, mesurer)
     python3 jarvis.py dormir [projet]     le sommeil et le rêve (un projet ou tous, 1 fois / 24 h)
     python3 jarvis.py installer-sommeil   lance le rêve à chaque réveil du Mac (launchd)
     python3 jarvis.py reve         l'idée du jour de chaque projet
-    python3 jarvis.py reve garder Demo-A:1 "raison"    garde une idée (ou : rejeter)
+    python3 jarvis.py reve garder "Projet A:1" "raison"    garde une idée (ou : rejeter)
     python3 jarvis.py propositions liste les propositions en attente
-    python3 jarvis.py valider Demo-A 3     valide la proposition 3 du projet Demo-A
-    python3 jarvis.py refuser Demo-A 3     refuse la proposition 3
+    python3 -m noyau.valider "Projet A:3"  valide la proposition 3 du Projet A
+    python3 jarvis.py refuser "Projet A" 3 refuse la proposition 3
     python3 jarvis.py modules      liste les modules ; activer / retirer avec --activer / --retirer
     python3 jarvis.py config-claude       affiche le réglage pour brancher Claude Desktop
     python3 jarvis.py mcp          serveur MCP (lancé par Claude Desktop, pas à la main)
@@ -55,7 +55,12 @@ def cmd_config_claude(args):
 def cmd_demo(args):
     sys.path.insert(0, str(RACINE_DEPOT / "exemples"))
     import demo
-    demo.creer_demo(remplacer=args.remplacer)
+    options = ["--remplacer"] if args.remplacer else []
+    if args.sans_navigateur:
+        options.append("--sans-navigateur")
+    if args.dossier:
+        options += ["--dossier", args.dossier]
+    demo.main(options)
 
 
 def cmd_cockpit(args):
@@ -129,7 +134,7 @@ def cmd_reve(args):
             print('Ta décision : python3 jarvis.py reve garder|rejeter <numéro> "raison"')
         return
     if not args.ident:
-        sys.exit("Précise le numéro de l'idée, par exemple : python3 jarvis.py reve garder Demo-A:1 \"bonne piste\"")
+        sys.exit("Précise le numéro de l'idée, par exemple : python3 jarvis.py reve garder \"Projet A:1\" \"bonne piste\"")
     projet, rid = reve.trouver(args.ident)
     r = (reve.garder if args.action == "garder" else reve.rejeter)(projet, rid, args.raison)
     print(f"Idée {projet}:{rid} {r['statut']}. " + (f"Raison notée : {args.raison}" if args.raison else ""))
@@ -189,6 +194,7 @@ def main(argv=None):
         f=cmd_config_claude)
     s = sous.add_parser("demo", help="créer les projets de démonstration")
     s.add_argument("--remplacer", action="store_true", help="recréer la démo de zéro")
+    s.add_argument("--sans-navigateur", action="store_true")
     s.set_defaults(f=cmd_demo)
     s = sous.add_parser("cockpit", help="ouvrir le cockpit web")
     s.add_argument("--port", type=int, default=8765)
@@ -208,7 +214,7 @@ def main(argv=None):
     s.set_defaults(f=cmd_installer_sommeil)
     s = sous.add_parser("reve", help="l'idée du jour ; garder ou rejeter une idée")
     s.add_argument("action", nargs="?", default="liste", choices=["liste", "garder", "rejeter"])
-    s.add_argument("ident", nargs="?", help="numéro de l'idée, ex. Demo-A:1 (ou 1)")
+    s.add_argument("ident", nargs="?", help="numéro de l'idée, ex. « Projet A:1 » (ou 1)")
     s.add_argument("raison", nargs="?", help="pourquoi (entre guillemets)")
     s.set_defaults(f=cmd_reve)
     sous.add_parser("propositions", help="propositions en attente").set_defaults(f=cmd_propositions)
