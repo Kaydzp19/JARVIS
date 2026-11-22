@@ -181,7 +181,7 @@ def phase_tri(ctx):
         for nid in (s["note_source"], s["note_cible"]):
             liens[nid] = liens.get(nid, 0) + 1
     dates = {n["id"]: n["modifiee_le"][:10] for n in projets.lister_notes(ctx.projet, ctx.racine)}
-    peremption = int(reglages.lire_nombre("TRI_PEREMPTION_JOURS", 90))
+    peremption = int(reglages.lire_nombre("tri_peremption_jours", 90))
     demande = {
         "consigne": ("Repère dans ces notes : les doublons (deux notes qui disent la même chose), "
                      "les notes orphelines (aucun lien) et les notes périmées (pas modifiées "
@@ -318,7 +318,7 @@ def demande_resume(stats, notes, max_jetons):
 def phase_analyse(ctx):
     # 1. Résumé du projet entier : code (statistiques) puis IA légère.
     stats = statistiques(ctx)
-    max_jetons = int(reglages.lire_nombre("ANALYSE_MAX_TOKENS", 1500))
+    max_jetons = int(reglages.lire_nombre("tokens_max_analyse", 1500))
     demande = demande_resume(stats, ctx.notes_partageables(), max_jetons)
     texte = json.dumps(demande, ensure_ascii=False)
     reponse = ctx.nuit.ia("resumer", demande, "courante", sensible=ctx.sensible_projet,

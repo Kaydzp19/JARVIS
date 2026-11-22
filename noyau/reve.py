@@ -193,10 +193,10 @@ def _enregistrer(ctx, idee, score, details, raison):
 
 
 def contraintes():
-    """Tes contraintes, lues dans reglages.local (budget, niveau, objectifs)."""
-    return {"budget_eur": reglages.lire_nombre("CONTRAINTE_BUDGET_EUR", 0.0),
-            "niveau": reglages.lire("CONTRAINTE_NIVEAU"),
-            "objectifs": reglages.lire("CONTRAINTE_OBJECTIFS")}
+    """Tes contraintes, lues dans ~/.jarvis/reglages.local (budget, niveau, objectifs)."""
+    return {"budget_eur": reglages.lire_nombre("contrainte_budget_eur", 0.0),
+            "niveau": reglages.lire("contrainte_niveau"),
+            "objectifs": reglages.lire("contrainte_objectifs")}
 
 
 # ------------------------------------------------------------------

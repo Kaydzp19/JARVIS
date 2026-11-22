@@ -98,8 +98,8 @@ class TestPhaseReveil(BaseReve):
 
     def test_contraintes_lues_dans_les_reglages(self):
         (self.racine / "reglages.local").write_text(
-            "CONTRAINTE_BUDGET_EUR=0\nCONTRAINTE_NIVEAU=débutant\n"
-            "CONTRAINTE_OBJECTIFS=trouver des clients, fixer un prix\n")
+            "contrainte_budget_eur=0\ncontrainte_niveau=débutant\n"
+            "contrainte_objectifs=trouver des clients, fixer un prix\n")
         self.dormir()
         demande, _ = self.demandes("evaluer")[0]
         self.assertEqual(demande["contraintes"]["objectifs"], "trouver des clients, fixer un prix")

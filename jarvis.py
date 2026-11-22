@@ -219,6 +219,8 @@ def main(argv=None):
     args = p.parse_args(argv)
     if args.dossier:
         os.environ["DOSSIER_DONNEES"] = str(Path(args.dossier).expanduser().resolve())
+    from noyau import reglages
+    reglages.creer_fichier_si_absent()  # ~/.jarvis/reglages.local, avec les valeurs par défaut
     args.f(args)
 
 

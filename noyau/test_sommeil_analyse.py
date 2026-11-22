@@ -54,7 +54,7 @@ class TestAnalyse(TestTemporaire):
         for i in range(30):
             cc.creer_note_humaine("A", f"Note longue {i}", "blabla " * 80, date=JOUR_1,
                                   racine=self.racine)
-        (self.racine / "reglages.local").write_text("ANALYSE_MAX_TOKENS=300\n")
+        (self.racine / "reglages.local").write_text("tokens_max_analyse=300\n")
         self.dormir()
         envoye = json.dumps(self.demandes("resumer")[0], ensure_ascii=False)
         self.assertLessEqual(len(envoye), 300 * 4)
