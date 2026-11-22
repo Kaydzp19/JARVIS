@@ -243,6 +243,9 @@ def _proposer_tri(ctx, notes, d):
                           f"> ⚠ À revoir : note ancienne (sommeil du {jour_txt}).\n\n{texte}",
                           item.get("raison") or "note pas modifiée depuis longtemps"))
 
+    # Priorité : doublons, puis notes périmées, puis notes orphelines.
+    ordre = {"doublon": 0, "perimee": 1, "orpheline": 2}
+    candidats.sort(key=lambda c: ordre[c[0].split(":")[1]])
     proposees = []
     for marque, cible, contenu, raison in candidats:
         if len(proposees) >= ctx.r["tri_max_propositions"]:

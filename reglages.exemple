@@ -23,5 +23,21 @@ DOSSIER_DONNEES=~/.jarvis
 # Budget maximum dépensé en IA, en euros par mois.
 BUDGET_IA_MAX_EUR_MOIS=5
 
+# --- Sommeil et rêve (marche 6) ---
+# Dépense maximum en IA par nuit, en euros (arrêt propre au-delà).
+SOMMEIL_PLAFOND_EUR_NUIT=0.03
+# Nombre maximum de jetons envoyés pour le résumé de nuit (1 jeton ≈ 4 caractères).
+ANALYSE_MAX_TOKENS=1500
+# Une note non modifiée depuis ce nombre de jours est proposée « à revoir ».
+TRI_PEREMPTION_JOURS=90
+
+# --- Tes contraintes, pour noter les idées du rêve ---
+# Budget disponible pour une idée, en euros.
+CONTRAINTE_BUDGET_EUR=0
+# Ton niveau : débutant, intermédiaire ou avancé.
+CONTRAINTE_NIVEAU=débutant
+# Tes objectifs, en quelques mots séparés par des virgules.
+CONTRAINTE_OBJECTIFS=
+
 # Mot de passe du cockpit web. Vide = un jeton différent à chaque lancement.
 COCKPIT_JETON=

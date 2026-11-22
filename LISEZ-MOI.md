@@ -38,17 +38,40 @@ Ouvre l'application **Terminal**, va dans le dossier du dépôt, puis :
    `python3 jarvis.py cockpit`
 3. Brancher Claude Desktop au cerveau : `python3 jarvis.py config-claude` affiche le réglage
    à coller, puis redémarre Claude Desktop et demande : « Que sais-tu du projet Demo-A ? »
-4. Faire tourner le sommeil chaque nuit à 3 h 30 (si le Mac est allumé) :
+4. Faire tourner le sommeil et le rêve chaque nuit à 3 h 30 :
    `python3 jarvis.py installer-sommeil`
 
 Autres commandes : `python3 jarvis.py --help`. Pour essayer sans toucher à tes vraies données,
 ajoute `--dossier /un/autre/dossier` juste après `jarvis.py`.
 
+## Sommeil et rêve (chaque nuit)
+
+`python3 jarvis.py dormir` (tous les projets) ou `python3 jarvis.py dormir --projet Demo-A`.
+Une fois `python3 jarvis.py installer-sommeil` lancé, le Mac le fait seul chaque nuit à 3 h 30 ;
+s'il dormait, au réveil ; s'il était éteint, à l'ouverture de session.
+
+| Phase | Ce qui se passe |
+|---|---|
+| Tri | Le code applique l'oubli et archive les liens trop faibles. Une IA légère repère doublons, notes orphelines et notes périmées : chaque correction devient une **proposition** à valider. |
+| Analyse | Résumé du projet entier (code + IA légère, au plus `ANALYSE_MAX_TOKENS` jetons envoyés) et synthèses proposées pour les groupes de notes très liées. |
+| Rêve | Des paires ou triplets de notes **éloignées** sont tirés au hasard ; une IA créative imagine environ 5 idées. |
+| Réveil | Une IA rigoureuse note chaque idée (nouveauté, utilité, faisabilité selon tes contraintes) et ne garde que **la meilleure** : une idée par projet et par nuit. |
+
+Les idées rêvées : `python3 jarvis.py reve` pour les voir, puis
+`python3 jarvis.py reve garder Demo-A:1 "raison"` ou `python3 jarvis.py reve rejeter Demo-A:1 "raison"`.
+Une idée gardée renforce les liens entre ses notes sources ; la raison d'un rejet est rappelée
+au rêve suivant pour ne pas la répéter.
+
+Règles : notes sensibles jamais envoyées ; tout passe par le routeur IA ; au plus
+`SOMMEIL_PLAFOND_EUR_NUIT` (0,03 €) par nuit, avec arrêt propre ; le sommeil ne fait que proposer ;
+chaque phase écrit au journal. Tes contraintes (budget, niveau, objectifs) se règlent dans
+`reglages.local` (voir `reglages.exemple`).
+
 ## Structure des dossiers
 
 | Dossier | Rôle |
 |---|---|
-| `noyau/` | Le moteur commun : projets, synapses, corps calleux, serveur MCP, routeur IA, orchestrateur, agents, sommeil, prises pour modules. |
+| `noyau/` | Le moteur commun : projets, synapses, corps calleux, serveur MCP, routeur IA, orchestrateur, agents, sommeil et rêve, prises pour modules. |
 | `noyau/agents/` | Un fichier par agent : sa consigne et les seuls outils autorisés. |
 | `modules/` | Les modules branchables. Exemple : `notifications` (mode DÉMO). Retirer un dossier retire le module. |
 | `interface/` | Le cockpit web (serveur local + page avec le cerveau 3D). |

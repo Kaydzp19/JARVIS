@@ -74,8 +74,8 @@ class TestCockpit(TestTemporaire):
         etat = self.json("/api/etat")
         self.assertEqual({p["nom"] for p in etat["projets"]}, {"Demo-A", "Demo-B"})
         self.assertIsNotNone(etat["maintenant"])
-        types = sorted(p["type"] for p in etat["propositions"])
-        self.assertEqual(types, ["note", "synthese"])
+        types = {p["type"] for p in etat["propositions"]}
+        self.assertEqual(types, {"note", "synthese", "modification"})
         self.assertEqual(etat["budget"]["depense"], 0)
         self.assertGreater(len(etat["journal"]), 10)
 

@@ -57,6 +57,22 @@ def creer_demo(racine=None, aujourd_hui=None, remplacer=False, bavard=True):
                                    racine=racine, acteur="agent:redacteur")
     synapses.relier_note("Demo-A", brouillon, debut, racine=racine, acteur="demo")
 
+    # Pour le tri de nuit : un doublon de « Prix » et une note périmée.
+    note("Tarifs", "# Tarifs\nPrix : 490 € la page, 20 € par mois d'hébergement, "
+                   "à tester auprès des clients.")
+    ancienne = projets.creer_note("Demo-A", "Liste de concurrents",
+                                  "# Liste de concurrents\nTrois agences repérées l'an dernier. "
+                                  "Voir [[Offre]].", racine=racine, acteur="demo", validee=True,
+                                  horodatage=(aujourd_hui - timedelta(days=200)).isoformat()
+                                  + "T09:00:00")
+    synapses.relier_note("Demo-A", ancienne, debut, racine=racine, acteur="demo")
+    # Pour le rêve : des notes sans rapport entre elles (notes éloignées).
+    note("Atelier du samedi", "# Atelier du samedi\nAnimer un atelier gratuit d'une heure "
+                              "à la médiathèque du quartier.")
+    note("Podcast local", "# Podcast local\nÉcouter les podcasts de la ville pour repérer "
+                          "les commerçants qui bougent.")
+    note("Carnet vidéo", "# Carnet vidéo\nFilmer chaque étape du projet en 30 secondes.")
+
     for i in range(4):  # Clients, Offre et Prix servent ensemble plusieurs jours
         cc.activer("Demo-A", [clients, offre, prix], date=debut + timedelta(days=i),
                    racine=racine, acteur="demo", raison="démonstration")
@@ -88,14 +104,21 @@ def creer_demo(racine=None, aujourd_hui=None, remplacer=False, bavard=True):
                         racine=racine, acteur="demo")
 
     # ---------------- Une nuit de sommeil, puis un tour ----------------
-    sommeil.dormir(aujourd_hui, racine=racine)
+    nuit = sommeil.dormir(aujourd_hui, racine=racine)
     bilan = orchestrateur.tour(aujourd_hui, racine=racine)
 
     if bavard:
         print("Démo créée : projets Demo-A (normal) et Demo-B (sensible).")
         print(f"- {len(bilan['actions'])} action(s) de l'orchestrateur, "
               f"{bilan['appels_ia']} appel(s) à l'IA de démonstration (0 €).")
-        print("- Une synthèse et un slogan attendent ta validation.")
+        a = nuit["projets"].get("Demo-A", {})
+        print(f"- Sommeil : {len(a.get('tri_propositions', []))} proposition(s) de tri, "
+              f"{len(a.get('syntheses_proposees', []))} synthèse(s), un slogan en attente.")
+        from noyau import reve
+        idee = reve.lister("Demo-A", racine=racine)
+        if idee:
+            print(f"- Rêve de la nuit (score {idee[-1]['score']}/10) : {idee[-1]['idee']}")
+        print("Pour voir et trier les idées rêvées : python3 jarvis.py reve")
         print("Ensuite : python3 jarvis.py cockpit")
     return True
 

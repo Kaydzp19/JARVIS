@@ -203,3 +203,22 @@ class TestApprentissage(BaseReve):
         self.assertNotEqual(seconde["idee"], premiere["idee"])
         from noyau.outils import similarite
         self.assertLess(similarite(seconde["idee"], premiere["idee"]), 0.6)
+
+
+class TestModeDemo(TestTemporaire):
+
+    def test_demo_complete_sans_cle(self):
+        import sys
+        from pathlib import Path
+        sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "exemples"))
+        import demo
+        demo.creer_demo(racine=self.racine, bavard=False)
+        idees = reve.lister("Demo-A", racine=self.racine)
+        self.assertEqual(len(idees), 1)
+        self.assertEqual(reve.lister("Demo-B", racine=self.racine), [])  # projet sensible
+        raisons = [p["raison"] for p in cc.lister_propositions("Demo-A", racine=self.racine)]
+        self.assertTrue(any(r.startswith("tri:doublon") for r in raisons), raisons)
+        self.assertTrue(any(r.startswith("tri:perimee") for r in raisons), raisons)
+        self.assertIsNotNone(sommeil.dernier_resume("Demo-A", racine=self.racine))
+        from noyau import routeur_ia
+        self.assertEqual(routeur_ia.depense_du_mois(racine=self.racine), 0)
