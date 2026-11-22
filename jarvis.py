@@ -9,6 +9,8 @@ Exemples (depuis le dossier du dépôt) :
     python3 jarvis.py tour         un tour de l'orchestrateur (observer, décider, agir, mesurer)
     python3 jarvis.py dormir       le sommeil et le rêve (--projet NOM pour un seul projet)
     python3 jarvis.py installer-sommeil   lance le sommeil chaque nuit (Mac, launchd)
+    python3 jarvis.py reve         liste les idées rêvées (nouvelles)
+    python3 jarvis.py reve garder Demo-A:1 "raison"    garde une idée (ou : rejeter)
     python3 jarvis.py propositions liste les propositions en attente
     python3 jarvis.py valider Demo-A 3     valide la proposition 3 du projet Demo-A
     python3 jarvis.py refuser Demo-A 3     refuse la proposition 3
@@ -103,6 +105,26 @@ def cmd_installer_sommeil(args):
         print("Échec de l'installation :", r.stderr.strip())
 
 
+def cmd_reve(args):
+    """Commandes temporaires (avant le cockpit) pour lire et trier les idées rêvées."""
+    from noyau import reve
+    if args.action == "liste":
+        idees = reve.lister_tous("nouvelle")
+        if not idees:
+            print("Aucune nouvelle idée. (Les idées naissent la nuit : python3 jarvis.py dormir)")
+        for r in idees:
+            print(f"[{r['projet']}:{r['id']}] nuit du {r['date']} · score {r['score']}/10")
+            print(f"    {r['idee']}")
+            print(f"    sources : {', '.join(r['sources_titres'])}")
+            print(f"    pourquoi : {r['raison']}")
+        return
+    if not args.ident:
+        sys.exit("Précise le numéro de l'idée, par exemple : python3 jarvis.py reve garder Demo-A:1 \"bonne piste\"")
+    projet, rid = reve.trouver(args.ident)
+    r = (reve.garder if args.action == "garder" else reve.rejeter)(projet, rid, args.raison)
+    print(f"Idée {projet}:{rid} {r['statut']}. " + (f"Raison notée : {args.raison}" if args.raison else ""))
+
+
 def cmd_propositions(args):
     from noyau import corps_calleux as cc
     for projet in cc.lister_projets():
@@ -174,6 +196,11 @@ def main(argv=None):
     s.add_argument("--heure", type=int, default=3)
     s.add_argument("--minute", type=int, default=30)
     s.set_defaults(f=cmd_installer_sommeil)
+    s = sous.add_parser("reve", help="les idées rêvées : lister, garder ou rejeter")
+    s.add_argument("action", nargs="?", default="liste", choices=["liste", "garder", "rejeter"])
+    s.add_argument("ident", nargs="?", help="numéro de l'idée, ex. Demo-A:1 (ou 1)")
+    s.add_argument("raison", nargs="?", help="pourquoi (entre guillemets)")
+    s.set_defaults(f=cmd_reve)
     sous.add_parser("propositions", help="propositions en attente").set_defaults(f=cmd_propositions)
     for nom, f in (("valider", cmd_valider), ("refuser", cmd_refuser)):
         s = sous.add_parser(nom, help=f"{nom} une proposition")

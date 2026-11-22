@@ -113,3 +113,50 @@ class TestPhaseReveil(BaseReve):
                                fournisseurs={"demo": self.espion}, reglages={"score_min": 10.0})
         self.assertIsNone(bilan["projets"]["A"]["reve"])
         self.assertEqual(reve.lister("A", racine=self.racine), [])
+
+
+class TestStockageEtCommandes(BaseReve):
+
+    def jarvis(self, *args):
+        import os
+        import subprocess
+        import sys
+        from pathlib import Path
+        depot = Path(__file__).resolve().parent.parent
+        r = subprocess.run([sys.executable, str(depot / "jarvis.py"), *args], capture_output=True,
+                           text=True, env=dict(os.environ), timeout=60)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        return r.stdout
+
+    def test_table_reves_et_statuts(self):
+        self.dormir()
+        r = reve.lister("A", racine=self.racine)[0]
+        self.assertEqual(set(r) >= {"idee", "sources", "score", "statut", "raison"}, True)
+        reve.rejeter("A", r["id"], "trop vague", date=JOUR_1, racine=self.racine)
+        r = reve.lire("A", r["id"], racine=self.racine)
+        self.assertEqual((r["statut"], r["raison"]), ("rejetée", "trop vague"))
+        with self.assertRaises(ValueError):
+            reve.changer_statut("A", r["id"], "inventé", racine=self.racine)
+
+    def test_identifiants(self):
+        self.dormir()
+        projets.creer_projet("B", racine=self.racine)
+        for t in ("Un", "Deux", "Trois"):
+            cc.creer_note_humaine("B", t, f"Note {t} sur un sujet {t}.", date=JOUR_1,
+                                  racine=self.racine)
+        sommeil.dormir(JOUR_1, projet="B", racine=self.racine)
+        self.assertEqual(reve.trouver("A:1", racine=self.racine), ("A", 1))
+        with self.assertRaises(KeyError):
+            reve.trouver("1", racine=self.racine)  # ambigu : A:1 et B:1
+        with self.assertRaises(KeyError):
+            reve.trouver("A:99", racine=self.racine)
+
+    def test_commandes_jarvis_reve(self):
+        self.dormir()
+        sortie = self.jarvis("reve")
+        self.assertIn("[A:1]", sortie)
+        self.assertIn("sources :", sortie)
+        sortie = self.jarvis("reve", "garder", "1", "bonne piste")
+        self.assertIn("gardée", sortie)
+        self.assertIn("Aucune nouvelle idée", self.jarvis("reve"))
+        self.assertEqual(reve.lire("A", 1, racine=self.racine)["raison"], "bonne piste")

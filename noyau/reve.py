@@ -16,7 +16,8 @@ import json
 import random
 from itertools import combinations
 
-from noyau import projets, reglages, synapses
+from noyau import corps_calleux, projets, reglages, synapses
+from noyau.outils import jour
 
 REGLAGES_REVE = {
     "combinaisons": 6,          # nombre de paires/triplets tirés au hasard
@@ -85,6 +86,66 @@ def lister(projet, statut=None, racine=None):
     finally:
         conn.close()
     return [_ligne(r) for r in lignes]
+
+
+def lister_tous(statut=None, racine=None):
+    """Les rêves de tous les projets (vue de Kayd), chacun avec son projet."""
+    return [dict(r, projet=p) for p in corps_calleux.lister_projets(racine)
+            for r in lister(p, statut, racine)]
+
+
+def trouver(identifiant, racine=None):
+    """
+    « Demo-A:3 » ou « 3 ». Renvoie (projet, id). Un simple numéro doit être
+    sans ambiguïté (un seul projet a un rêve avec ce numéro).
+    """
+    texte = str(identifiant)
+    if ":" in texte:
+        projet, num = texte.rsplit(":", 1)
+        rid = int(num)
+        if not any(r["id"] == rid for r in lister(projet, racine=racine)):
+            raise KeyError(f"Aucun rêve {texte}.")
+        return projet, rid
+    rid = int(texte)
+    trouves = [r["projet"] for r in lister_tous(racine=racine) if r["id"] == rid]
+    if not trouves:
+        raise KeyError(f"Aucun rêve n°{rid}.")
+    if len(trouves) > 1:
+        raise KeyError(f"Le rêve n°{rid} existe dans plusieurs projets ({', '.join(trouves)}) : "
+                       f"précise, par exemple « {trouves[0]}:{rid} ».")
+    return trouves[0], rid
+
+
+def lire(projet, rid, racine=None):
+    for r in lister(projet, racine=racine):
+        if r["id"] == rid:
+            return r
+    raise KeyError(f"Aucun rêve n°{rid} dans le projet {projet!r}.")
+
+
+def changer_statut(projet, rid, statut, raison=None, date=None, racine=None, acteur="kayd"):
+    """ACTION HUMAINE : décider du sort d'une idée rêvée."""
+    if statut not in ("gardée", "rejetée", "creusée"):
+        raise ValueError(f"Statut impossible : {statut!r}")
+    r = lire(projet, rid, racine)
+    conn = projets._connexion(projet, racine)
+    try:
+        with conn:
+            conn.execute("UPDATE reves SET statut = ?, raison = ?, traite_le = ? WHERE id = ?",
+                         (statut, raison or r["raison"], jour(date).isoformat(), rid))
+    finally:
+        conn.close()
+    corps_calleux.journal(projet, f"rêve n°{rid} {statut} : {r['idee']}", raison, date=date,
+                          racine=racine, acteur=acteur)
+    return lire(projet, rid, racine)
+
+
+def garder(projet, rid, raison=None, date=None, racine=None):
+    return changer_statut(projet, rid, "gardée", raison, date, racine)
+
+
+def rejeter(projet, rid, raison=None, date=None, racine=None):
+    return changer_statut(projet, rid, "rejetée", raison, date, racine)
 
 
 def deja_reve(projet, date, racine=None):
