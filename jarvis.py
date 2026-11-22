@@ -13,6 +13,7 @@ Exemples (depuis le dossier du dépôt) :
     python3 jarvis.py valider Demo-A 3     valide la proposition 3 du projet Demo-A
     python3 jarvis.py refuser Demo-A 3     refuse la proposition 3
     python3 jarvis.py modules      liste les modules ; activer / retirer avec --activer / --retirer
+    python3 jarvis.py config-claude       affiche le réglage pour brancher Claude Desktop
     python3 jarvis.py mcp          serveur MCP (lancé par Claude Desktop, pas à la main)
     python3 jarvis.py tests        lance tous les tests
 
@@ -37,6 +38,16 @@ def _afficher(objet):
 def cmd_mcp(args):
     from noyau import serveur_mcp
     serveur_mcp.servir()
+
+
+def cmd_config_claude(args):
+    """Affiche le réglage à coller dans Claude Desktop pour brancher JARVIS."""
+    config = {"mcpServers": {"jarvis": {"command": sys.executable,
+                                        "args": [str(RACINE_DEPOT / "jarvis.py"), "mcp"]}}}
+    print("Fichier à modifier (Mac) :")
+    print("   ~/Library/Application Support/Claude/claude_desktop_config.json")
+    print("Contenu à y mettre (s'il contient déjà des réglages, ajoute seulement le bloc « jarvis ») :")
+    _afficher(config)
 
 
 def cmd_demo(args):
@@ -141,6 +152,8 @@ def main(argv=None):
     sous = p.add_subparsers(dest="commande", required=True)
 
     sous.add_parser("mcp", help="serveur MCP pour Claude").set_defaults(f=cmd_mcp)
+    sous.add_parser("config-claude", help="réglage pour brancher Claude Desktop").set_defaults(
+        f=cmd_config_claude)
     s = sous.add_parser("demo", help="créer les projets de démonstration")
     s.add_argument("--remplacer", action="store_true", help="recréer la démo de zéro")
     s.set_defaults(f=cmd_demo)

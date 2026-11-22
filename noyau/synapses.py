@@ -146,6 +146,47 @@ def creer_synapses_de_note(projet, note_id, date, racine=None, reglages=None,
         conn.close()
 
 
+def creer_synapses_entrantes(projet, note_id, date, racine=None, reglages=None,
+                             acteur=ACTEUR_PAR_DEFAUT):
+    """
+    Crée les synapses venant des notes qui citaient DÉJÀ cette note avec
+    [[son titre]] avant qu'elle existe. Sans cela, un lien écrit vers une
+    note future serait perdu. Renvoie la liste des synapses créées.
+    """
+    r = _reglages(reglages)
+    jour = _jour(date).isoformat()
+    notes = projets.lister_notes(projet, racine)
+    titre = next((n["titre"] for n in notes if n["id"] == note_id), None)
+    if titre is None:
+        raise KeyError(f"Aucune note {note_id} dans le projet {projet!r}.")
+    crees = []
+    conn = _ouvrir(projet, racine)
+    try:
+        with conn:
+            for n in notes:
+                if n["id"] == note_id:
+                    continue
+                if titre not in projets.trouver_liens(projets.lire_note(projet, n["id"], racine)):
+                    continue
+                cur = conn.execute(
+                    "INSERT OR IGNORE INTO synapses "
+                    "(note_source, note_cible, poids, oubli_calcule_jusqu_au) VALUES (?, ?, ?, ?)",
+                    (n["id"], note_id, r["poids_initial"], jour))
+                if cur.rowcount:
+                    crees.append(cur.lastrowid)
+                    _journal(conn, date, f"synapse créée : {n['id']} → {note_id}", acteur,
+                             f"lien [[{titre}]] écrit avant la note")
+        return crees
+    finally:
+        conn.close()
+
+
+def relier_note(projet, note_id, date, racine=None, reglages=None, acteur=ACTEUR_PAR_DEFAUT):
+    """Liens sortants ([[...]] de la note) + liens entrants (notes qui la citaient)."""
+    return (creer_synapses_de_note(projet, note_id, date, racine, reglages, acteur)
+            + creer_synapses_entrantes(projet, note_id, date, racine, reglages, acteur))
+
+
 # ------------------------------------------------------------------
 # Usage ensemble (renforcement)
 # ------------------------------------------------------------------

@@ -258,8 +258,7 @@ def valider_proposition(projet, pid, date=None, racine=None, acteur="kayd", rais
         resultat = projets.creer_note(projet, p["titre"], contenu, type_note=p["type"],
                                       racine=racine, acteur=acteur, validee=True,
                                       raison=f"proposition {pid} validée")
-        synapses.creer_synapses_de_note(projet, resultat, jour(date), racine=racine,
-                                        acteur=acteur)
+        synapses.relier_note(projet, resultat, jour(date), racine=racine, acteur=acteur)
     else:  # tache
         note_liee = _id_note_par_titre(projet, p["liens"][0], racine) if p["liens"] else None
         resultat = projets.creer_tache(projet, p["titre"], note_id=note_liee, racine=racine,
@@ -281,7 +280,7 @@ def creer_note_humaine(projet, titre, contenu, sensible=False, date=None, racine
     """ACTION HUMAINE. Kayd écrit lui-même une note : elle est validée d'office."""
     nid = projets.creer_note(projet, titre, contenu, sensible=sensible, racine=racine,
                              acteur=acteur, validee=True)
-    synapses.creer_synapses_de_note(projet, nid, jour(date), racine=racine, acteur=acteur)
+    synapses.relier_note(projet, nid, jour(date), racine=racine, acteur=acteur)
     return nid
 
 
