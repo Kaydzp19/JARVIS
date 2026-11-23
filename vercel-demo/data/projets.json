@@ -1,0 +1,21 @@
+{
+ "projets": [
+  {
+   "nom": "Projet A",
+   "fichier": "projet-a.json",
+   "sensible": false,
+   "notes": 12
+  },
+  {
+   "nom": "Projet B",
+   "fichier": "projet-b.json",
+   "sensible": true,
+   "notes": 2
+  }
+ ],
+ "mode_ia": "simule",
+ "budget": {
+  "depense": 0,
+  "plafond": 5.0
+ }
+}

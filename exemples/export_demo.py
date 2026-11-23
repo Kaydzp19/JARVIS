@@ -1,0 +1,155 @@
+"""
+Export de la démo pour la version en ligne (site statique, ex. Vercel).
+
+    python3 exemples/export_demo.py
+
+1. Fait tourner la démo complète dans un dossier TEMPORAIRE (jamais ~/.jarvis) :
+   2 projets fictifs, notes liées et validées, une nuit de sommeil, les 4 voies
+   d'agents, une proposition validée, une lecture par le corps calleux (MCP).
+2. Exporte dans vercel-demo/data/ des fichiers JSON qui ne contiennent QUE des
+   titres, des liens, des poids, des statuts et le journal : jamais le texte des
+   notes, jamais de chemin local, jamais de clé.
+3. Construit vercel-demo/index.html à partir de l'interface (interface/cockpit.html) :
+   la page lit ces JSON au lieu du serveur Python.
+"""
+
+import json
+import os
+import re
+import sys
+import tempfile
+from datetime import timedelta
+from pathlib import Path
+
+RACINE_DEPOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(RACINE_DEPOT))
+sys.path.insert(0, str(RACINE_DEPOT / "exemples"))
+
+DOSSIER_SITE = RACINE_DEPOT / "vercel-demo"
+DOSSIER_DONNEES_SITE = DOSSIER_SITE / "data"
+CONTENU_MASQUE = "(Contenu non publié dans la démo en ligne : seuls les titres et les liens le sont.)"
+
+
+def nom_fichier(projet):
+    """« Projet A » -> projet-a.json"""
+    return re.sub(r"[^a-z0-9]+", "-", projet.lower()).strip("-") + ".json"
+
+
+def _usages(projet, racine):
+    """Jours où chaque synapse a servi (pour l'apprentissage), à partir de la dernière nuit calculée."""
+    from noyau import projets
+    conn = projets._connexion(projet, racine)
+    try:
+        lignes = conn.execute(
+            "SELECT u.synapse_id, u.jour FROM usages_synapses u JOIN synapses s ON s.id = u.synapse_id "
+            "WHERE u.jour >= s.oubli_calcule_jusqu_au ORDER BY u.jour").fetchall()
+    finally:
+        conn.close()
+    usages = {}
+    for r in lignes:
+        usages.setdefault(r["synapse_id"], []).append(r["jour"])
+    return usages
+
+
+def exporter_projet(projet, racine):
+    """Toutes les données d'UN projet, sans aucun texte de note."""
+    from interface import serveur_web
+    from noyau import corps_calleux as cc
+    from noyau import projets, reve, synapses
+
+    notes = [{"id": n["id"], "titre": n["titre"], "validee": bool(n["validee"]),
+              "sensible": bool(n["sensible"])} for n in projets.lister_notes(projet, racine)]
+    usages = _usages(projet, racine)
+    syn = [{"id": s["id"], "a": s["note_source"], "b": s["note_cible"], "poids": s["poids"],
+            "archivee": bool(s["archivee"]), "jusqu_au": s["oubli_calcule_jusqu_au"],
+            "activations": s["activations"], "usages": usages.get(s["id"], [])}
+           for s in synapses.lister_synapses(projet, racine)]
+    etat = serveur_web.etat(racine, projet)
+    taches = [{"id": t["id"], "titre": t["titre"], "statut": t["statut"], "echeance": t["echeance"],
+               "note_id": t["note_id"], "contrat": t["contrat"]}
+              for t in cc.etat_projet(projet, racine)["taches"]]
+    propositions = [{"id": p["id"], "type": p["type"], "titre": p["titre"], "statut": p["statut"],
+                     "acteur": p["acteur"], "raison": p["raison"], "liens": p["liens"],
+                     "note_cible": p.get("note_cible"), "verification": p["verification"],
+                     "creee_le": p["creee_le"]}
+                    for p in cc.lister_propositions(projet, racine=racine)]
+    reves = [{k: r[k] for k in ("id", "date", "idee", "sources", "sources_titres", "score",
+                                "statut", "raison")} for r in reve.lister(projet, racine=racine)]
+    journal = [{"n": l["n"], "date": l["date"], "acteur": l["acteur"],
+                "evenement": l["evenement"], "raison": l["raison"]}
+               for l in projets.lire_journal(projet, racine)]
+    return {
+        "projet": projet,
+        "sensible": cc.projet_sensible(projet, racine),
+        "demo": True,
+        "notes": notes,
+        "synapses": syn,
+        "taches": taches,
+        "propositions": propositions,
+        "reves": reves,
+        "journal": journal,
+        "agents": [{k: a[k] for k in ("nom", "voie", "consigne", "outils")} for a in etat["agents"]],
+        "reglages": {k: synapses.REGLAGES[k] for k in ("poids_initial", "apprentissage", "oubli",
+                                                        "plafond", "seuil_archivage")},
+    }
+
+
+def preparer_demo(racine):
+    """Fait tourner la démo complète dans « racine » (un dossier temporaire)."""
+    import demo
+    from noyau import corps_calleux as cc
+    from noyau import projets, synapses
+    from noyau.outils import jour
+
+    demo.creer_demo(racine=racine, bavard=False)
+    slogan = next(p for p in cc.lister_propositions("Projet A", "en attente", racine=racine)
+                  if p["titre"] == "Slogan")
+    cc.valider_proposition("Projet A", slogan["id"], racine=racine)      # garde d'écriture
+    demo.interroger_par_mcp(racine)                                     # corps calleux (MCP)
+    # Pour que « Simuler une nuit » montre aussi l'apprentissage en ligne : les notes
+    # Clients cibles, Offre et Prix « servent ensemble » les deux prochains jours.
+    titres = {n["titre"]: n["id"] for n in projets.lister_notes("Projet A", racine)}
+    ids = [titres[t] for t in ("Clients cibles", "Offre", "Prix")]
+    depart = synapses.prochaine_nuit("Projet A", racine) - timedelta(days=1)
+    for i in range(2):
+        cc.activer("Projet A", ids, date=jour(depart + timedelta(days=i)), racine=racine,
+                   acteur="demo", raison="usage prévu pour la démo en ligne")
+
+
+def exporter(destination=None, bavard=True):
+    """Lance la démo dans un dossier temporaire et écrit les JSON. Renvoie la liste des fichiers."""
+    destination = Path(destination or DOSSIER_DONNEES_SITE)
+    destination.mkdir(parents=True, exist_ok=True)
+    anciens = dict(os.environ)
+    with tempfile.TemporaryDirectory() as tmp:
+        try:
+            os.environ["DOSSIER_DONNEES"] = tmp
+            os.environ["JARVIS_REGLAGES"] = str(Path(tmp) / "reglages.local")
+            os.environ["mode_ia"] = "simule"
+            from noyau import projets
+            preparer_demo(tmp)
+            liste, fichiers = [], []
+            for p in projets.lister_projets(tmp):
+                donnees = exporter_projet(p, tmp)
+                f = destination / nom_fichier(p)
+                f.write_text(json.dumps(donnees, ensure_ascii=False, indent=1), encoding="utf-8")
+                fichiers.append(f)
+                liste.append({"nom": p, "fichier": f.name, "sensible": donnees["sensible"],
+                              "notes": len(donnees["notes"])})
+            index = destination / "projets.json"
+            index.write_text(json.dumps({"projets": liste, "mode_ia": "simule",
+                                         "budget": {"depense": 0, "plafond": 5.0}},
+                                        ensure_ascii=False, indent=1), encoding="utf-8")
+            fichiers.insert(0, index)
+        finally:
+            os.environ.clear()
+            os.environ.update(anciens)
+    if bavard:
+        print("Données de démo exportées :")
+        for f in fichiers:
+            print("   " + str(f.relative_to(RACINE_DEPOT)) if RACINE_DEPOT in f.parents else "   " + f.name)
+    return fichiers
+
+
+if __name__ == "__main__":
+    exporter()
