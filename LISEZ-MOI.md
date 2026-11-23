@@ -84,6 +84,46 @@ les polices : l'aperçu 2D du cockpit le remplace.
 Toutes les commandes : `python3 jarvis.py --help`. Pour essayer sur un autre dossier de données :
 `python3 jarvis.py --dossier /un/dossier …`.
 
+## Démo en ligne (Vercel)
+
+Le dossier `vercel-demo/` est une **version de démonstration** de l'interface, faite de simples
+fichiers (HTML, JavaScript, JSON), qu'on peut publier telle quelle sur Vercel (un hébergeur de
+sites) : aucun serveur Python, aucune clé, aucune donnée réelle.
+
+- **Ce qu'elle montre** : les deux projets fictifs de la démo (cerveau 3D, cockpit, notes, journal),
+  avec leurs titres, liens, poids, propositions et journal. Jamais le texte des notes.
+- **Ce qu'on peut y faire** : « Simuler une nuit » (oubli 0,02, apprentissage 0,10, archivage sous
+  0,05, calculés dans le navigateur, avec exactement les mêmes résultats que le vrai JARVIS),
+  valider ou refuser une proposition, Fait / Pas fait, garder ou rejeter l'idée du jour. Un bandeau
+  le rappelle : « Démo en ligne : données fictives, rien n'est enregistré ». Tout revient à zéro
+  quand on recharge la page.
+
+**Refaire l'export** (après un changement de l'interface ou de la démo), dans le dossier JARVIS :
+
+```
+python3 exemples/export_demo.py
+```
+
+Le script fait tourner la démo dans un dossier temporaire (jamais `~/.jarvis`), puis écrit
+`vercel-demo/data/*.json` et `vercel-demo/index.html`. Un test (`interface/test_demo_en_ligne.py`)
+vérifie qu'aucun chemin local, aucune clé et aucun texte de note n'y figure.
+
+**La voir sur ton Mac avant de la publier** :
+
+```
+python3 -m http.server 8000 --directory vercel-demo
+```
+
+puis ouvre http://localhost:8000 dans ton navigateur (**Ctrl + C** pour arrêter).
+
+**La publier sur Vercel** : sur vercel.com, « Add New… › Project », importe le dépôt GitHub, choisis
+la branche `vercel-demo`, et laisse les réglages par défaut : le fichier `vercel.json` (à la racine)
+dit déjà à Vercel de servir le dossier `vercel-demo/` sans rien construire.
+
+**La limite** : c'est une démo, **pas le vrai JARVIS**. Pas de mémoire qui se garde, pas de
+corps calleux (MCP), pas d'agents qui tournent, pas d'IA, pas de sommeil complet (seules les
+synapses sont recalculées). Ne mets jamais de vraies données dans ce dossier : il est public.
+
 ## Réglages : `~/.jarvis/reglages.local`
 
 Ce fichier est créé tout seul à la première commande, **hors du dépôt**. Les principaux :
@@ -115,6 +155,7 @@ Ce fichier est créé tout seul à la première commande, **hors du dépôt**. L
 | `noyau/modules.py`, `modules/notifications/` | La prise standard des modules et le premier module |
 | `interface/` | Le serveur web local (127.0.0.1 seulement) et la page : cerveau 3D, cockpit, notes, journal |
 | `exemples/demo.py` | La démo de bout en bout |
+| `exemples/export_demo.py`, `vercel-demo/`, `vercel.json` | La démo en ligne : export, site statique, réglage Vercel |
 | `jarvis.py` | La « télécommande » : toutes les commandes |
 | `docs/maquettes/` | Captures de l'interface (données fictives) |
 | `RAPPORT-FINAL.md` | Ce qui a été construit, testé, et ce qui reste à décider |
