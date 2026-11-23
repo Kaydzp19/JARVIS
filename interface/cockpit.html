@@ -818,7 +818,7 @@ $("b-nuit").addEventListener("click", async () => {
     await new Promise(ok => setTimeout(ok, Math.max(0, 2900 - 700 * i)));
     clearInterval(minuteur); phases.forEach(li => (li.className = "fait"));
     const idee = r.reve ? "1 idée gardée, en attente de ta décision" : "aucune idée assez bonne";
-    log.textContent = `Nuit du ${quand(r.nuit)} · tri : ${r.renforcees || 0} renforcée(s), ${r.archivees || 0} archivée(s), ${(r.tri_propositions || []).length} proposition(s) · `
+    log.textContent = r.message || `Nuit du ${quand(r.nuit)} · tri : ${r.renforcees || 0} renforcée(s), ${r.archivees || 0} archivée(s), ${(r.tri_propositions || []).length} proposition(s) · `
       + `analyse : ${(r.syntheses_proposees || []).length} synthèse(s) · rêve : ${r.idees_revees || 0} idée(s) · réveil : ${idee}.` + (r.arret ? " Arrêt : " + r.arret : "");
     await rafraichir(true);
   } catch (e) { clearInterval(minuteur); log.textContent = "Impossible : " + e.message; }

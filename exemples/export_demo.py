@@ -151,5 +151,60 @@ def exporter(destination=None, bavard=True):
     return fichiers
 
 
+# ------------------------------------------------------------------
+# La page du site : l'interface du vrai JARVIS, branchée sur les JSON
+# ------------------------------------------------------------------
+
+BANDEAU = ('<div class="bandeau-demo" role="note"><b>Démo en ligne</b> : données fictives, '
+           'rien n\'est enregistré</div>')
+
+STYLE_BANDEAU = """
+  /* --- Démo en ligne : bandeau fixe --- */
+  .bandeau-demo { position: fixed; top: 0; left: 0; right: 0; height: 28px; z-index: 40; display: flex;
+    align-items: center; justify-content: center; gap: 6px; background: #071a2c;
+    border-bottom: 1px solid rgba(92, 225, 255, .35); color: #E6F7FF; font: 500 11px/1 var(--mono);
+    letter-spacing: .06em; }
+  .bandeau-demo b { color: #5CE1FF; font-weight: 600; }
+  .barre { top: 28px; }
+  .menu { top: calc(var(--barre) + 28px); }
+  main { top: calc(var(--barre) + 28px); }
+  @media (max-width: 860px) {
+    .bandeau-demo { top: auto; bottom: calc(46px + env(safe-area-inset-bottom)); height: auto; padding: 6px 10px;
+      font-size: 10px; border-bottom: 0; border-top: 1px solid rgba(92, 225, 255, .35); }
+    .barre { top: 0; }
+    main { padding-bottom: 104px; }
+  }
+"""
+
+
+def construire_page(source=None, destination=None):
+    """Copie interface/cockpit.html en version en ligne : bandeau, et serveur remplacé par js/demo.js."""
+    source = Path(source or RACINE_DEPOT / "interface" / "cockpit.html")
+    destination = Path(destination or DOSSIER_SITE / "index.html")
+    html = source.read_text(encoding="utf-8")
+    remplacements = [
+        ("<title>JARVIS · Second cerveau</title>", "<title>JARVIS · Démo en ligne</title>"),
+        ("</style>", STYLE_BANDEAU + "</style>"),
+        ("<body>", "<body>\n" + BANDEAU),
+        ('<span class="puce noyau"><i></i>Noyau en ligne</span>',
+         '<span class="puce noyau"><i></i>Sans serveur</span>'),
+        ("« Simuler une nuit » : une vraie nuit, accélérée, sur les données de démo.",
+         "En ligne, « Simuler une nuit » recalcule les synapses dans ton navigateur : "
+         "oubli 0,02, apprentissage 0,10, archivage sous 0,05."),
+        ('<script type="module">',
+         '<script src="js/simulation.js"></script>\n<script src="js/demo.js"></script>\n'
+         '<script type="module">'),
+    ]
+    for avant, apres in remplacements:
+        if avant not in html:
+            raise RuntimeError(f"Interface inattendue : « {avant} » introuvable.")
+        html = html.replace(avant, apres, 1)
+    html = html.replace("<!doctype html>", "<!doctype html>\n<!-- Page GÉNÉRÉE par exemples/export_demo.py "
+                        "à partir de interface/cockpit.html : ne pas la modifier à la main. -->", 1)
+    destination.write_text(html, encoding="utf-8")
+    return destination
+
+
 if __name__ == "__main__":
     exporter()
+    print("Page construite : " + str(construire_page().relative_to(RACINE_DEPOT)))

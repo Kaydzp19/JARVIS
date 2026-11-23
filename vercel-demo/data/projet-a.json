@@ -410,21 +410,21 @@
  "journal": [
   {
    "n": 1,
-   "date": "2026-11-23T19:12:24",
+   "date": "2026-11-23T19:15:10",
    "acteur": "demo",
    "evenement": "projet créé : Projet A",
    "raison": "projet de démonstration"
   },
   {
    "n": 2,
-   "date": "2026-11-23T19:12:24",
+   "date": "2026-11-23T19:15:10",
    "acteur": "demo",
    "evenement": "note créée : Objectif",
    "raison": null
   },
   {
    "n": 3,
-   "date": "2026-11-23T19:12:24",
+   "date": "2026-11-23T19:15:10",
    "acteur": "demo",
    "evenement": "note créée : Clients cibles",
    "raison": null
@@ -438,7 +438,7 @@
   },
   {
    "n": 5,
-   "date": "2026-11-23T19:12:24",
+   "date": "2026-11-23T19:15:10",
    "acteur": "demo",
    "evenement": "note créée : Offre",
    "raison": null
@@ -459,7 +459,7 @@
   },
   {
    "n": 8,
-   "date": "2026-11-23T19:12:24",
+   "date": "2026-11-23T19:15:10",
    "acteur": "demo",
    "evenement": "note créée : Prix",
    "raison": null
@@ -487,7 +487,7 @@
   },
   {
    "n": 12,
-   "date": "2026-11-23T19:12:24",
+   "date": "2026-11-23T19:15:10",
    "acteur": "agent:redacteur",
    "evenement": "note créée : Idées en vrac",
    "raison": null
@@ -501,14 +501,14 @@
   },
   {
    "n": 14,
-   "date": "2026-11-23T19:12:24",
+   "date": "2026-11-23T19:15:10",
    "acteur": "demo",
    "evenement": "note créée : Tarifs",
    "raison": null
   },
   {
    "n": 15,
-   "date": "2026-11-23T19:12:24",
+   "date": "2026-11-23T19:15:10",
    "acteur": "demo",
    "evenement": "note créée : Liste de concurrents",
    "raison": null
@@ -522,35 +522,35 @@
   },
   {
    "n": 17,
-   "date": "2026-11-23T19:12:24",
+   "date": "2026-11-23T19:15:10",
    "acteur": "demo",
    "evenement": "note créée : Atelier du samedi",
    "raison": null
   },
   {
    "n": 18,
-   "date": "2026-11-23T19:12:24",
+   "date": "2026-11-23T19:15:10",
    "acteur": "demo",
    "evenement": "note créée : Podcast local",
    "raison": null
   },
   {
    "n": 19,
-   "date": "2026-11-23T19:12:24",
+   "date": "2026-11-23T19:15:10",
    "acteur": "demo",
    "evenement": "note créée : Carnet vidéo",
    "raison": null
   },
   {
    "n": 20,
-   "date": "2026-11-23T19:12:24",
+   "date": "2026-11-23T19:15:10",
    "acteur": "demo",
    "evenement": "tâche créée : Écrire le texte de la page d'accueil",
    "raison": null
   },
   {
    "n": 21,
-   "date": "2026-11-23T19:12:24",
+   "date": "2026-11-23T19:15:10",
    "acteur": "demo",
    "evenement": "tâche créée : Lister 10 entreprises à contacter",
    "raison": null
@@ -564,7 +564,7 @@
   },
   {
    "n": 23,
-   "date": "2026-11-23T19:12:24",
+   "date": "2026-11-23T19:15:10",
    "acteur": "demo",
    "evenement": "note créée : Partenaires",
    "raison": null
@@ -886,7 +886,7 @@
   },
   {
    "n": 69,
-   "date": "2026-11-23T19:12:24",
+   "date": "2026-11-23T19:15:10",
    "acteur": "kayd",
    "evenement": "note créée : Slogan",
    "raison": "proposition 1 validée"

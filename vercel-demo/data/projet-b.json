@@ -86,21 +86,21 @@
  "journal": [
   {
    "n": 1,
-   "date": "2026-11-23T19:12:24",
+   "date": "2026-11-23T19:15:10",
    "acteur": "demo",
    "evenement": "projet créé : Projet B",
    "raison": "projet de démonstration"
   },
   {
    "n": 2,
-   "date": "2026-11-23T19:12:24",
+   "date": "2026-11-23T19:15:10",
    "acteur": "demo",
    "evenement": "note créée : Carnet privé",
    "raison": null
   },
   {
    "n": 3,
-   "date": "2026-11-23T19:12:24",
+   "date": "2026-11-23T19:15:10",
    "acteur": "demo",
    "evenement": "note créée : Objectifs du trimestre",
    "raison": null
@@ -121,7 +121,7 @@
   },
   {
    "n": 6,
-   "date": "2026-11-23T19:12:24",
+   "date": "2026-11-23T19:15:10",
    "acteur": "demo",
    "evenement": "tâche créée : Relire le carnet du mois",
    "raison": null
