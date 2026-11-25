@@ -116,6 +116,121 @@ def se_souvenir(projet, requete="", limite=5, racine=None, masquer_sensibles=Fal
     return resultats
 
 
+def _plus_courts_chemins(depart, voisins):
+    """Dijkstra depuis plusieurs graines. Coût d'une synapse = 1 / (0,12 + poids)."""
+    import heapq
+    dist = {g: 0.0 for g in depart}
+    avant = {}
+    file = [(0.0, g) for g in sorted(depart)]
+    heapq.heapify(file)
+    while file:
+        d, n = heapq.heappop(file)
+        if d > dist.get(n, float("inf")):
+            continue
+        for v, w in voisins.get(n, []):
+            nd = d + 1.0 / (0.12 + w)
+            if nd < dist.get(v, float("inf")) - 1e-12:
+                dist[v], avant[v] = nd, n
+                heapq.heappush(file, (nd, v))
+    return dist, avant
+
+
+def se_souvenir_trace(projet, requete="", limite=6, racine=None, aujourd_hui=None):
+    """
+    Comme se_souvenir, mais renvoie la TRACE du calcul pour l'interface (la sphère) :
+    uniquement des identifiants, des titres, des scores et des liens — jamais le texte.
+    Calcul par code (aucune IA) :
+      1. notation de toutes les notes : pertinence (FTS5), force des synapses,
+         fraîcheur (date de modification), importance (validée, nombre de liens) ;
+      2. propagation depuis les 3 meilleures graines, le long des synapses, selon leur poids ;
+      3. sélection des « limite » meilleures, et chemins (synapses) qui les relient aux graines.
+    N'écrit rien (le renforcement éventuel passe par activer, notes validées seulement).
+    """
+    limite = max(1, min(int(limite or 6), 20))
+    notes = projets.lister_notes(projet, racine)
+    if not notes:
+        return {"projet": projet, "requete": requete, "notees": 0, "graines": [],
+                "retenues": [], "intermediaires": [], "synapses": [], "appel_ia": False}
+    mots = mots_cles(requete or "")
+    fts = projets.rechercher(projet, requete, 200, racine) if mots else []
+    if fts is None:  # repli sans FTS5 : on compte les mots
+        fts = []
+        for n in notes:
+            t = normaliser(n["titre"] + " " + projets.lire_note(projet, n["id"], racine))
+            s = sum(t.count(m) for m in mots)
+            if s:
+                fts.append({"id": n["id"], "score": float(s)})
+    pertinence = {r["id"]: r["score"] for r in fts}
+    liens = synapses.lister_synapses(projet, racine, avec_archivees=False)
+    voisins, force, degre = {}, {}, {}
+    for s in liens:
+        a, b, w = s["note_source"], s["note_cible"], s["poids"]
+        voisins.setdefault(a, []).append((b, w))
+        voisins.setdefault(b, []).append((a, w))
+        for x in (a, b):
+            force[x] = force.get(x, 0.0) + w
+            degre[x] = degre.get(x, 0) + 1
+    ref = jour(aujourd_hui)
+    pmax = max(pertinence.values(), default=0.0) or 1.0
+    fmax = max(force.values(), default=0.0) or 1.0
+    dmax = max(degre.values(), default=0) or 1
+
+    def fraicheur(n):
+        try:
+            age = (ref - jour(n["modifiee_le"])).days
+        except (TypeError, ValueError):
+            age = 365
+        return 0.5 ** (max(0, age) / 30.0)          # demi-vie : 30 jours
+
+    base = {}
+    for n in notes:
+        importance = 0.6 * bool(n.get("validee", 0)) + 0.4 * degre.get(n["id"], 0) / dmax
+        base[n["id"]] = (0.55 * pertinence.get(n["id"], 0.0) / pmax
+                         + 0.25 * force.get(n["id"], 0.0) / fmax
+                         + 0.10 * fraicheur(n) + 0.10 * importance)
+    graines = sorted(base, key=lambda i: (-base[i], i))[:3]
+    # Propagation : une graine transmet son score aux voisines, atténué par le poids.
+    propage = {}
+    for g in graines:
+        for v, w in voisins.get(g, []):
+            propage[v] = max(propage.get(v, 0.0), base[g] * w)
+    final = {i: base[i] + 0.35 * propage.get(i, 0.0) for i in base}
+    retenues = sorted(final, key=lambda i: (-final[i], i))[:limite]
+    if mots and pertinence:
+        # Une note sans rapport avec la question n'est gardée que si elle est reliée aux graines.
+        retenues = [i for i in retenues if pertinence.get(i) or i in propage or i in graines]
+    dist, avant = _plus_courts_chemins(graines, voisins)
+    aretes, intermediaires = set(), set()
+    for i in retenues:
+        n = i
+        while n in avant:
+            p = avant[n]
+            aretes.add((min(p, n), max(p, n)))
+            if p not in retenues:
+                intermediaires.add(p)
+            n = p
+    poids_arete = {}
+    for s in liens:
+        k = (min(s["note_source"], s["note_cible"]), max(s["note_source"], s["note_cible"]))
+        poids_arete[k] = max(poids_arete.get(k, 0.0), s["poids"])
+    titres = {n["id"]: n["titre"] for n in notes}
+    sensibles = {n["id"] for n in notes if n["sensible"]}
+    return {
+        "projet": projet,
+        "requete": requete,
+        "notees": len(notes),
+        "appel_ia": False,
+        "graines": graines,
+        "retenues": [{"id": i, "titre": titres[i], "score": round(final[i], 4),
+                      "pertinence": round(pertinence.get(i, 0.0) / pmax, 4),
+                      "force": round(force.get(i, 0.0), 3), "sensible": i in sensibles,
+                      "rang": r + 1} for r, i in enumerate(retenues)],
+        "intermediaires": sorted(intermediaires),
+        "synapses": [{"a": a, "b": b, "poids": round(poids_arete[(a, b)], 3)}
+                     for a, b in sorted(aretes)],
+    }
+
+
 # ==================================================================
 # 2. proposer : créer une proposition en attente, sur copie
 # ==================================================================
