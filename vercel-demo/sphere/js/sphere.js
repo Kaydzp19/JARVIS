@@ -1,7 +1,16 @@
 // La sphère : un neurone par note, une synapse par lien pondéré, une région par projet.
 // Un seul objet THREE.Points (shaders maison, mélange additif) : neurones, poussière de
-// surface et de volume, et synapses faites de chaînes de points qui coulent le long de
-// courbes de Bézier (vitesse et densité selon le poids). Aucune forme de cerveau.
+// surface et de volume, et synapses en POINTILLÉS IMMOBILES le long de courbes de Bézier
+// (densité et intensité selon le poids). Aucune forme de cerveau.
+//
+// Rendu À LA DEMANDE : au repos la sphère est une image fixe, rien n'est recalculé ni
+// redessiné. On ne dessine que pendant une interaction (glisser, zoom, survol), une
+// animation (vague de recherche, réponse de JARVIS, nuit) ou un hologramme ouvert.
+// Pas de rotation automatique.
+//
+// Quand JARVIS répond, chaque impulsion de parole part de la zone du projet concerné et
+// traverse la sphère (neurones plus gros et plus lumineux, synapses éclairées, léger
+// gonflement), en bleu vif. L'orange reste réservé à la recherche de notes.
 //
 // L'interface LIT les données ; la sphère n'en modifie aucune.
 
@@ -15,30 +24,37 @@ const MAXP = 24000;
 const TH = Math.tan(20 * Math.PI / 180);
 
 const VERT = `attribute vec3 aP0;attribute vec3 aP1;attribute vec3 aP2;attribute vec4 aA;attribute vec4 aB;attribute vec2 aC;
-uniform float uTime;uniform float uK;uniform float uCam;uniform float uVoice;uniform float uDeform;uniform float uListen;uniform float uBreath;
-uniform float uFlow;uniform float uGlobal;uniform float uScl;uniform vec3 uWD;uniform float uWR;uniform float uWAmp;uniform float uDim;uniform float uPous;
+uniform float uK;uniform float uCam;uniform float uDeform;uniform float uListen;uniform float uVif;
+uniform float uGlobal;uniform float uScl;uniform vec3 uWD;uniform float uWR;uniform float uWAmp;uniform float uDim;uniform float uPous;
+uniform vec4 uPI[4];uniform float uPF[4];
 varying vec3 vC;varying float vA;varying float vW;
 void main(){float kind=aC.x;vec3 p=aP0;float t=0.0;
-if(kind>1.5&&kind<2.5){t=fract(aA.x+uTime*aA.y*uFlow);p=mix(mix(aP0,aP1,t),mix(aP1,aP2,t),t);}
+if(kind>1.5&&kind<2.5){t=aA.x;p=mix(mix(aP0,aP1,t),mix(aP1,aP2,t),t);}
 vec3 dir=normalize(p+vec3(0.0001));
-float n=sin(dir.x*5.0+uTime*3.1)*0.5+sin(dir.y*7.0-uTime*4.3)*0.3+sin(dir.z*6.0+uTime*2.2)*0.2;
-float rad=1.0+uBreath*(0.6+0.4*sin(aC.y*6.2831))+uDeform*uVoice*(0.05+0.075*n)-uListen*0.035;p*=rad;
+float pul=0.0;
+for(int i=0;i<4;i++){if(uPI[i].w>=0.0){float ang=acos(clamp(dot(dir,uPI[i].xyz),-1.0,1.0));
+float d=ang-uPI[i].w*2.8;float onde=uDeform>0.5?exp(-d*d*7.0):1.0;pul+=uPF[i]*onde*exp(-uPI[i].w*1.6);}}
+pul=min(pul,1.0);
+float rad=1.0+uDeform*pul*0.03-uListen*0.035;p*=rad;
 vec4 mv=modelViewMatrix*vec4(p,1.0);
 float act=kind>1.5?mix(aB.x,aB.y,t):aB.x;
 float wa=0.0;if(uWR>-5.0){vec2 q=mv.xy/uScl;float pq=dot(q,vec2(-uWD.y,uWD.x));float dd=dot(q,uWD.xy)+0.3*pq*pq-uWR;
 wa=uWAmp*(exp(-dd*dd*15.0)+step(dd,0.0)*0.24*exp(dd*1.3));}
 act=max(act,wa*(kind<0.5?0.75:1.0));
 float fade=clamp(1.12-(-mv.z-(uCam-1.0))*0.36,0.22,1.2);
-float tw=0.82+0.18*sin(uTime*(1.2+aC.y)+aC.y*40.0);
-float vo=0.5+0.5*n;
 float pous=kind<0.5?uPous:1.0;
-float md=step(0.5,aB.w);float size=aA.z*uScl*(1.0+act*(abs(kind-1.0)<0.5?3.3:2.0)+md*0.6+uVoice*0.6*vo)*aB.z*pous;
+float neur=abs(kind-1.0)<0.5?1.0:0.0;
+float md=step(0.5,aB.w);
+float size=aA.z*uScl*(1.0+act*(neur>0.5?3.3:2.0)+md*0.6+uDeform*pul*(neur>0.5?1.6:0.8))*aB.z*pous;
 gl_PointSize=aB.z*pous>0.01?max(1.4,size*uK/(-mv.z)):0.0;
 vec3 base=mix(vec3(0.22,0.66,1.0),vec3(0.78,0.96,1.0),aA.w*aA.w);
+base=mix(base,vec3(0.36,0.84,1.0),uVif*0.55);
+base=mix(base,vec3(0.72,0.95,1.0),pul*0.6);
 float yel=step(0.5,aB.w)*step(aB.w,1.5);float ora=step(1.5,aB.w)*0.9;
 vec3 c=mix(base,vec3(1.0,0.85,0.30),yel);c=mix(c,vec3(1.0,0.54,0.24),max(act,ora));
 vC=c;vW=1.0-max(max(yel,ora),act);
-vA=fade*tw*aB.z*pous*uGlobal*(0.5+0.5*aA.w+uVoice*0.55*vo)*(1.0+act*1.0+md*0.5)*(1.0-uDim*0.64*(1.0-clamp(act*1.7,0.0,1.0)));
+float lum=1.0+uVif*0.35+pul*(kind>1.5?2.2:1.4);
+vA=fade*aB.z*pous*uGlobal*(0.5+0.5*aA.w)*lum*(1.0+act*1.0+md*0.5)*(1.0-uDim*0.64*(1.0-clamp(act*1.7,0.0,1.0)));
 gl_Position=projectionMatrix*mv;}`;
 const FRAG = `varying vec3 vC;varying float vA;varying float vW;
 void main(){float d=length(gl_PointCoord-vec2(0.5));if(d>0.5)discard;
@@ -101,9 +117,10 @@ export function creerSphere(conteneur, options = {}) {
 
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(40, 1, 0.1, 60);
-  const U = { uTime: { value: 0 }, uK: { value: 600 }, uCam: { value: 4 }, uVoice: { value: 0 }, uDeform: { value: reduit ? 0 : 1 },
-    uListen: { value: 0 }, uBreath: { value: 0 }, uFlow: { value: 1 }, uGlobal: { value: 1 }, uScl: { value: 1 },
-    uWD: { value: new V3(1, 0, 0) }, uWR: { value: -9 }, uWAmp: { value: 0 }, uDim: { value: 0 }, uPous: { value: 1 } };
+  const U = { uTime: { value: 0 }, uK: { value: 600 }, uCam: { value: 4 }, uDeform: { value: reduit ? 0 : 1 },
+    uListen: { value: 0 }, uVif: { value: 0 }, uGlobal: { value: 1 }, uScl: { value: 1 },
+    uWD: { value: new V3(1, 0, 0) }, uWR: { value: -9 }, uWAmp: { value: 0 }, uDim: { value: 0 }, uPous: { value: 1 },
+    uPI: { value: [0, 1, 2, 3].map(() => new THREE.Vector4(0, 0, 1, -1)) }, uPF: { value: [0, 0, 0, 0] } };
   const materiau = (frag, u) => new THREE.ShaderMaterial({ uniforms: u || U, vertexShader: VERT, fragmentShader: frag,
     transparent: true, depthWrite: false, blending: THREE.AdditiveBlending });
   const matPoints = materiau(FRAG);
@@ -117,9 +134,9 @@ export function creerSphere(conteneur, options = {}) {
     noeuds: [], aretes: [], N: 0, parProjet: [], projets: [], index: new Map(),
     act: new Float32Array(0), eact: new Float32Array(0), useE: false, focus: -1, focDim: 0.4,
     selection: -1, survol: -1, alertes: [], arch: 0, actSale: false,
-    voix: 0, ecoute: 0, voixCible: 0, ecouteCible: 0, mode: 0, modeT: 0, compactActif: false,
-    W: 800, H: 600, D: 4, zoom: 1, asp: 1, glisse: false, pause: 0, ecran: [],
-    etapes: [], auRedimensionnement: [], vague: null, nuitS: null,
+    ecoute: 0, ecouteCible: 0, mode: 0, modeT: 0, compactActif: false, vif: 0, impulsions: [],
+    W: 800, H: 600, D: 4, zoom: 1, asp: 1, glisse: false, ecran: [],
+    etapes: [], besoins: [], auRedimensionnement: [], vague: null, nuitS: null, parole: null,
   };
 
   // ------------------------------------------------------------------
@@ -276,7 +293,7 @@ export function creerSphere(conteneur, options = {}) {
       if (k + nb > MAXP) return;
       const e = { a: pl.a, b: pl.b, w: pl.w, proj: pl.pj, vivante: pl.reve ? 0 : 1, mode: pl.reve ? 2 : 0, debut: k, nb, reve: pl.reve };
       for (let q = 0; q < nb; q++, k++) {
-        A.a.set([(q + rnd() * 0.6) / nb, (0.04 + 0.11 * (0.3 + pl.w)) * (rnd() < 0.5 ? 1 : -1), 0.0098 + 0.0055 * pl.w, 0.42 + 0.58 * pl.w], k * 4);
+        A.a.set([(q + 0.5) / nb, 0, 0.0098 + 0.0055 * pl.w, 0.42 + 0.58 * pl.w], k * 4);
         A.b.set([0, 0, e.vivante, e.mode], k * 4); A.c.set([2, rnd()], k * 2); dotE[k] = aretes.length;
       }
       ecrireCourbe(e, pl.a, pl.b);
@@ -311,6 +328,7 @@ export function creerSphere(conteneur, options = {}) {
     });
     S.noeuds.forEach((n, ix) => { B[ix * 4 + 2] = focF(n.proj); B[ix * 4 + 3] = n.mode; });
     S.geo.attributes.aB.needsUpdate = true;
+    if (S.demanderImage) S.demanderImage();
   }
   function pousserActivite() {
     const B = S.A.b, NA = S.dotNA, NB = S.dotNB, DE = S.dotE, ea = S.eact, act = S.act;
@@ -388,11 +406,12 @@ export function creerSphere(conteneur, options = {}) {
     S.D = fitD();
     U.uK.value = S.H * renderer.getPixelRatio() / (2 * TH);
     (S.auRedimensionnement || []).forEach((f) => f());
+    if (S.demanderImage) S.demanderImage();
   }
   if (window.ResizeObserver) new ResizeObserver(redimensionner).observe(conteneur);
   else window.addEventListener('resize', redimensionner);
   redimensionner();
-  const relancer = () => { S.pause = 3; };
+  const relancer = () => demanderImage();
   cv.addEventListener('pointerdown', (e) => {
     cv.setPointerCapture(e.pointerId);
     pointeurs[e.pointerId] = { x: e.clientX, y: e.clientY };
@@ -404,7 +423,7 @@ export function creerSphere(conteneur, options = {}) {
   cv.addEventListener('pointermove', (e) => {
     const p = pointeurs[e.pointerId];
     if (!p) {
-      if (e.pointerType === 'mouse') { const r = cv.getBoundingClientRect(); sourisSurvol.x = e.clientX - r.left; sourisSurvol.y = e.clientY - r.top; sourisSurvol.actif = true; }
+      if (e.pointerType === 'mouse') { const r = cv.getBoundingClientRect(); sourisSurvol.x = e.clientX - r.left; sourisSurvol.y = e.clientY - r.top; sourisSurvol.actif = true; demanderImage(); }
       return;
     }
     const ks = Object.keys(pointeurs);
@@ -430,9 +449,10 @@ export function creerSphere(conteneur, options = {}) {
       if (bouge < 8 && performance.now() - t0 < 600) { const r = cv.getBoundingClientRect(); choisirA(e.clientX - r.left, e.clientY - r.top); }
     }
     pincement0 = 0;
+    demanderImage();
   });
-  cv.addEventListener('pointercancel', (e) => { delete pointeurs[e.pointerId]; S.glisse = false; });
-  cv.addEventListener('pointerleave', (e) => { if (e.pointerType === 'mouse' && !pointeurs[e.pointerId]) { sourisSurvol.actif = false; survoler(-1); } });
+  cv.addEventListener('pointercancel', (e) => { delete pointeurs[e.pointerId]; S.glisse = false; demanderImage(); });
+  cv.addEventListener('pointerleave', (e) => { if (e.pointerType === 'mouse' && !pointeurs[e.pointerId]) { sourisSurvol.actif = false; survoler(-1); demanderImage(); } });
   cv.addEventListener('wheel', (e) => { e.preventDefault(); S.zoom = Math.max(0.7, Math.min(1.5, S.zoom * Math.exp(e.deltaY * 0.001))); relancer(); }, { passive: false });
   cv.addEventListener('keydown', (e) => {
     let ok = true;
@@ -477,6 +497,7 @@ export function creerSphere(conteneur, options = {}) {
   }
   function selectionner(i) {
     S.selection = i;
+    if (S.demanderImage) S.demanderImage();
     if (i < 0) { anneau.hidden = true; return; }
     if (options.annoncer) options.annoncer(descrire(i).texte);
   }
@@ -511,39 +532,75 @@ export function creerSphere(conteneur, options = {}) {
   // ------------------------------------------------------------------
   const vague = installerVague(S, { rafraichirEtat, pousserActivite, majEcran });
   const nuit = installerNuit(S, { rafraichirEtat, pousserActivite, compter, ajouterAlerte });
-  let dernier = performance.now(), ema = 0.016, prCourant = DPR;
-  const spinV = 0.11;
+  let dernier = performance.now(), ema = 0.016, prCourant = DPR, prevu = false, apresPause = true;
+  const ANG = { cible: null };
+
+  /** Demande une image (une seule à la fois). Appelé par toute interaction ou animation. */
+  function demanderImage() {
+    if (prevu) return;
+    prevu = true;
+    requestAnimationFrame(boucle);
+  }
+  S.demanderImage = demanderImage;
+
+  /** Faut-il encore dessiner l'image suivante ? (sinon : image fixe, plus rien ne tourne) */
+  function encoreActif() {
+    return S.glisse || Math.abs(vel.x) > 1e-4 || Math.abs(vel.y) > 1e-4 || S.cibleY != null
+      || !!(S.vague || S.nuitS || S.allume) || S.impulsions.length > 0 || S.vif > 0.003
+      || Math.abs((S.compactActif ? S.modeT : 0) - S.mode) > 0.002 || Math.abs(S.ecouteCible - S.ecoute) > 0.002
+      || S.besoins.some((f) => f());
+  }
+
+  /** Impulsion de parole : part de la zone du projet concerné (4 au plus en même temps). */
+  function impulsion(force, projet) {
+    const pj = S.projets.findIndex((p) => p.nom === projet);
+    const d = pj >= 0 && S.CEN && S.CEN[pj] ? S.CEN[pj] : new V3(0, 0.9, 0.45).normalize();
+    S.impulsions.push({ d, age: 0, force });
+    if (S.impulsions.length > 4) S.impulsions.shift();
+    demanderImage();
+  }
+
   function boucle(maintenant) {
-    const dt = Math.min(0.05, (maintenant - dernier) / 1000);
+    prevu = false;
+    const dt = apresPause ? 1 / 60 : Math.min(0.05, (maintenant - dernier) / 1000);
     dernier = maintenant;
     U.uTime.value = maintenant / 1000;
-    // voix et écoute
-    S.voix += ((S.parle ? S.voixCible : 0) - S.voix) * Math.min(1, dt * 9);
+    // écoute (champ de saisie actif) et intensité de parole (source unique)
     S.ecoute += (S.ecouteCible - S.ecoute) * Math.min(1, dt * 4);
-    if (S.parle) S.voixCible = S.voixCible * 0.92 + 0.04 * Math.abs(Math.sin(maintenant / 170) * Math.sin(maintenant / 410 + 1));
-    U.uVoice.value = S.voix; U.uListen.value = reduit ? 0 : S.ecoute;
-    U.uBreath.value = reduit ? 0 : 0.012 * Math.sin(maintenant / 1000 * 0.9);
-    const analyse = !!(S.vague || S.nuitS);
-    U.uFlow.value += ((analyse ? 2.2 : 1) - U.uFlow.value) * Math.min(1, dt * 3);
-    // repli automatique si l'image ralentit (objectif 60 images/s)
-    ema += (dt - ema) * 0.05;
-    if (ema > 0.034 && prCourant > 1) { prCourant = Math.max(1, prCourant - 0.25); DPR = prCourant; renderer.setPixelRatio(prCourant); redimensionner(); ema = 0.016; }
-    else if (ema > 0.05 && prCourant <= 1 && U.uPous.value > 0) { U.uPous.value = 0; ema = 0.016; S.allege = true; }
-    if (S.pause > 0) S.pause -= dt;
-    // rotation (inertie, rotation lente au repos, arrêtée pendant l'interaction)
+    if (Math.abs(S.ecouteCible - S.ecoute) < 0.002) S.ecoute = S.ecouteCible;
+    U.uListen.value = reduit ? 0 : S.ecoute;
+    const voix = S.parole ? S.parole.valeur : 0;
+    S.vif += ((S.parole && S.parole.parle ? Math.max(0.55, voix) : voix) - S.vif) * Math.min(1, dt * 5);
+    if (S.vif < 0.003 && !(S.parole && S.parole.parle)) S.vif = 0;
+    U.uVif.value = S.vif;
+    S.impulsions = S.impulsions.filter((x) => (x.age += dt) < 1.6);
+    for (let i = 0; i < 4; i++) {
+      const x = S.impulsions[i];
+      if (x) { U.uPI.value[i].set(x.d.x, x.d.y, x.d.z, x.age); U.uPF.value[i] = x.force; }
+      else { U.uPI.value[i].w = -1; U.uPF.value[i] = 0; }
+    }
+    // repli automatique si l'image ralentit (objectif 60 images/s) — mesuré seulement en animation
+    if (!apresPause) {
+      ema += (dt - ema) * 0.05;
+      if (ema > 0.034 && prCourant > 1) { prCourant = Math.max(1, prCourant - 0.25); DPR = prCourant; renderer.setPixelRatio(prCourant); redimensionner(); ema = 0.016; }
+      else if (ema > 0.05 && prCourant <= 1 && U.uPous.value > 0) { U.uPous.value = 0; ema = 0.016; S.allege = true; }
+    }
+    apresPause = false;
+    // rotation : inertie après un glisser, ou rotation vers une note allumée (jamais automatique)
     if (S.cibleY != null && !S.glisse) {
       let df = S.cibleY - sph.rotation.y; df = Math.atan2(Math.sin(df), Math.cos(df));
       sph.rotation.y += df * Math.min(1, dt * 3); sph.rotation.x += (S.cibleX - sph.rotation.x) * Math.min(1, dt * 3);
       if (Math.abs(df) < 0.01) S.cibleY = null;
-      S.pause = Math.max(S.pause, 2);
     } else if (!S.glisse) {
       sph.rotation.y += vel.y; sph.rotation.x = Math.max(-1.1, Math.min(1.1, sph.rotation.x + vel.x));
-      vel.x *= 0.94; vel.y *= 0.94;
-      if (Math.abs(vel.y) < 0.0008 && !reduit && S.pause <= 0) sph.rotation.y += dt * (analyse ? 0.22 : spinV);
-      if (S.pause <= 0) sph.rotation.x += (0.12 - sph.rotation.x) * Math.min(1, dt * 0.6);
+      vel.x *= 0.92; vel.y *= 0.92;
+      if (Math.abs(vel.x) < 1e-4) vel.x = 0;
+      if (Math.abs(vel.y) < 1e-4) vel.y = 0;
     }
     // mode compact quand un hologramme est affiché
-    S.mode += ((S.compactActif ? S.modeT : 0) - S.mode) * Math.min(1, dt * 4);
+    const cibleMode = S.compactActif ? S.modeT : 0;
+    S.mode += (cibleMode - S.mode) * Math.min(1, dt * 4);
+    if (Math.abs(cibleMode - S.mode) < 0.002) S.mode = cibleMode;
     const m = S.mode, Dz = S.D * S.zoom;
     camera.position.set(0, 0, Dz); camera.lookAt(0, 0, 0);
     sph.scale.setScalar(1 - 0.58 * m); U.uScl.value = 1 - 0.58 * m; sph.position.y = m * 0.60 * Dz * TH;
@@ -575,28 +632,38 @@ export function creerSphere(conteneur, options = {}) {
       }
     } else { bulle.hidden = true; bulle.dataset.cle = ''; }
     renderer.render(scene, camera);
-    requestAnimationFrame(boucle);
+    S.images = (S.images || 0) + 1;
+    if (encoreActif()) demanderImage();
+    else apresPause = true;              // image fixe : plus rien n'est recalculé ni redessiné
   }
 
   const api = {
     S, charger, ajouterAlerte, retirerAlerte, synchroniserAlertes, allumer, selectionner, redimensionner,
+    demanderImage,
     /** Vague de recherche (4 temps). Renvoie une poignée : fournir(traces), fin (promesse). */
-    rechercher: (projet) => vague.rechercher(projet),
+    rechercher: (projet) => { const v = vague.rechercher(projet); demanderImage(); return v; },
     /** Vague seule (3 s) avant un hologramme qui n'est pas une recherche. */
-    balayer: () => vague.balayer(),
+    balayer: () => { const v = vague.balayer(); demanderImage(); return v; },
     /** Nuit en 4 phases à partir d'un bilan déjà calculé. */
-    nuit: (bilan) => nuit.lancer(bilan),
+    nuit: (bilan) => { const v = nuit.lancer(bilan); demanderImage(); return v; },
     occupee: () => !!(S.vague || S.nuitS),
-    parler(niveau) { S.parle = niveau > 0; if (niveau > 0) S.voixCible = niveau; },
-    ecouter(oui) { S.ecouteCible = oui ? 1 : 0; },
+    /** Branche la source unique d'intensité de parole (voir parole.js). */
+    brancherParole(parole) {
+      S.parole = parole;
+      parole.abonner((e) => {
+        if (e.type === 'impulsion') impulsion(e.force, e.origine);
+        else demanderImage();
+      });
+    },
+    ecouter(oui) { S.ecouteCible = oui ? 1 : 0; demanderImage(); },
     /** Mode compact : la sphère rapetisse et monte quand un hologramme est ouvert. */
-    compacter(actif, cible = 1) { S.compactActif = actif; S.modeT = cible; },
+    compacter(actif, cible = 1) { S.compactActif = actif; S.modeT = cible; demanderImage(); },
     pointEcran(x, y, z = 1.0) { // conversion px -> monde à la profondeur des hologrammes
       const dist = S.D * S.zoom - z, hh = dist * TH, hw = hh * S.asp;
       return { x: (x / S.W * 2 - 1) * hw, y: (1 - y / S.H * 2) * hh, hw, hh };
     },
     projetIndex: (nom) => S.projets.findIndex((p) => p.nom === nom),
   };
-  requestAnimationFrame(boucle);
+  demanderImage();
   return api;
 }

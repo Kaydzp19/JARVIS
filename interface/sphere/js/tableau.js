@@ -96,9 +96,11 @@ export function creerTableau({ source, surDecision }) {
 
   function demarrer() {
     systeme(); depenses(); aValider(); journal();
-    setInterval(systeme, 5000);
-    setInterval(depenses, 30000);
-    setInterval(journal, 15000);
+    // Pas de mise à jour quand l'onglet est caché (aucun travail inutile).
+    const siVisible = (f) => () => { if (!document.hidden) f(); };
+    setInterval(siVisible(systeme), 5000);
+    setInterval(siVisible(depenses), 30000);
+    setInterval(siVisible(journal), 15000);
   }
 
   return { demarrer, systeme, depenses, aValider, journal, get machine() { return derniereMachine; }, get attente() { return attente; } };

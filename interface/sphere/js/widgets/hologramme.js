@@ -281,6 +281,7 @@ export function creerHologrammes({ sphere, centre, surAction, surNote, surOuvrir
     o.boite = boiteInitiale();
     o.visible = true; groupe.visible = true; o.prog = reduit ? 0.98 : 0; o.cible = 1;
     calque.hidden = false;
+    S.demanderImage();
     calque.setAttribute('aria-label', `Hologramme : ${ev.titre}`);
     poignee.setAttribute('aria-label', `${ev.titre} : déplacer avec les flèches, Maj + flèches pour redimensionner`);
     const port = S.H > S.W * 1.05;
@@ -375,6 +376,8 @@ export function creerHologrammes({ sphere, centre, surAction, surNote, surOuvrir
   });
 
   // ---- animation (appelée à chaque image par la sphère) ----
+  // Tant qu'un hologramme est ouvert (ou se ferme), la sphère continue de dessiner.
+  S.besoins.push(() => o.visible);
   S.etapes.push((dt, maintenant) => {
     if (!o.visible) return;
     const vitesse = reduit ? 8 : (o.cible > o.prog ? 1.5 : 2.2);

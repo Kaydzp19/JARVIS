@@ -7,7 +7,7 @@ import { $, el, mouvementReduit } from './outils.js';
 
 const LIBELLES = { VEILLE: 'VEILLE', ECOUTE: 'ÉCOUTE', ANALYSE: 'ANALYSE', REPONSE: 'RÉPONSE' };
 
-export function creerConversation({ sphere, surQuestion }) {
+export function creerConversation({ sphere, parole, surQuestion }) {
   const messages = $('messages'), champ = $('question'), suggestions = $('suggestions');
   const reduit = mouvementReduit();
   let occupe = false, voixActive = false;
@@ -36,39 +36,52 @@ export function creerConversation({ sphere, surQuestion }) {
     });
     return { completer(texte) { t.appendChild(el('br')); t.appendChild(document.createTextNode(texte)); } };
   }
-  /** JARVIS parle : le texte s'écrit, la sphère pulse (pauses sur les espaces), voix si activée. */
-  function dire(texte) {
+  /**
+   * JARVIS parle : le texte s'écrit (ou la voix le lit). Chaque mot envoie une impulsion
+   * à la source unique d'intensité de parole ; « origine » = projet concerné.
+   */
+  function dire(texte, { origine = null } = {}) {
     return new Promise((resolve) => {
       const t = ajouter('j', 'JARVIS', '');
       etat('REPONSE');
-      let i = 0, attendre = 1, fini = false;
+      parole.debut(origine);
+      let i = 0, attendre = 1, fini = false, voix = false;
       const fin = () => {
         if (fini || --attendre > 0) return;
         fini = true;
         setTimeout(() => {
-          sphere && sphere.parler(0);
+          parole.fin();
           etat(document.activeElement === champ ? 'ECOUTE' : 'VEILLE');
           resolve();
         }, 450);
       };
       if (voixActive && tts) {
         try {
-          attendre = 2;
+          attendre = 2; voix = true;
           speechSynthesis.cancel();
           const u = new SpeechSynthesisUtterance(texte);
           u.lang = 'fr-FR'; u.onend = fin; u.onerror = fin;
-          u.onboundary = () => sphere && sphere.parler(1);
+          // une impulsion par mot prononcé (rythme réel de la voix)
+          u.onboundary = (e) => {
+            if (e.name && e.name !== 'word') return;
+            const mot = texte.slice(e.charIndex, e.charIndex + (e.charLength || 8)).split(/\s/)[0];
+            parole.impulsion(parole.forceMot(mot) || 0.4);
+          };
           speechSynthesis.speak(u);
           setTimeout(() => { attendre = 1; fin(); }, Math.max(9000, texte.length * 110));
-        } catch (e) { attendre = 1; }
+        } catch (e) { attendre = 1; voix = false; }
       }
+      const mots = texte.split(/(\s+)/);      // mots et espaces, dans l'ordre
+      let m = 0;
       (function pas() {
-        i += reduit ? texte.length : 2;
+        if (reduit) { t.textContent = texte; if (!voix) parole.impulsion(0.6); fin(); return; }
+        const morceau = mots[m++] || '';
+        i += morceau.length;
         t.textContent = texte.slice(0, i);
         messages.scrollTop = messages.scrollHeight;
-        const c = texte.charAt(Math.min(i, texte.length) - 1);
-        if (sphere) sphere.parler(/[\s,.;:!?’'()]/.test(c) ? 0.1 : 0.45 + 0.55 * Math.abs(Math.sin(i * 0.9)));
-        if (i < texte.length) setTimeout(pas, 18); else fin();
+        if (!voix && morceau.trim()) parole.impulsion(parole.forceMot(morceau));
+        if (m < mots.length) setTimeout(pas, morceau.trim() ? 40 + morceau.length * 14 : 10);
+        else fin();
       })();
     });
   }

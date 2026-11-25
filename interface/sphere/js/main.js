@@ -8,6 +8,7 @@ import { choisirSource, routerReel } from './donnees.js';
 import { projetDemande, router as routerDemo } from './donnees_demo.js';
 import { creerSphere } from './sphere.js';
 import { creerConversation } from './conversation.js';
+import { creerParole } from './parole.js';
 import { creerTableau } from './tableau.js';
 import { creerEditeur } from './editeur.js';
 import { creerHologrammes } from './widgets/hologramme.js';
@@ -23,20 +24,25 @@ function horloge() {
   $('horloge').textContent = d.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' }).replace('.', '') + ' · ' + heureMinute(d);
 }
 
-function onde(etatVoix) {
+/** L'onde en bas de la sphère : elle suit l'intensité de parole (immobile au repos). */
+function onde(parole) {
   const svg = $('onde'), barres = [];
   for (let i = 0; i < 34; i++) {
     const r = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
     r.setAttribute('x', i * 6); r.setAttribute('width', 3); r.setAttribute('rx', 1.5); r.setAttribute('y', 8); r.setAttribute('height', 2);
     svg.appendChild(r); barres.push(r);
   }
-  (function tic(t) {
+  let graine = 1;
+  const dessiner = (v) => {
     barres.forEach((r, i) => {
-      const h = etatVoix.parle ? 3 + 13 * Math.abs(Math.sin(t / 130 + i * 0.7) * Math.sin(t / 310 + i * 0.31)) : 2;
+      const h = v > 0.004 ? 2 + 14 * v * (0.35 + 0.65 * Math.abs(Math.sin(graine * 1.7 + i * 0.9))) : 2;
       r.setAttribute('height', h); r.setAttribute('y', 9 - h / 2);
     });
-    requestAnimationFrame(tic);
-  })(0);
+  };
+  parole.abonner((e) => {
+    if (e.type === 'impulsion') graine++;
+    dessiner(parole.valeur);
+  });
 }
 
 /** Sans WebGL : message clair et liste des notes (titres seulement). */
@@ -67,8 +73,9 @@ async function demarrer() {
   if (source.mode === 'reel') source.peutSimulerNuit = donnees.projets.some((p) => p.demo);
   horloge(); setInterval(horloge, 20000);
 
-  const etatVoix = { parle: false };
-  onde(etatVoix);
+  // Source UNIQUE d'intensité de parole (0 à 1) : sphère, onde et état la lisent.
+  const parole = creerParole();
+  onde(parole);
   const annoncer = (t) => { $('annonce').textContent = t; };
   const compteur = (c) => { $('compteur').textContent = `${c.neurones} neurones · ${c.synapses} synapses · ${c.archivees} archivées`; };
 
@@ -82,10 +89,8 @@ async function demarrer() {
     $('vide').innerHTML = 'Aucun projet pour l’instant.<br>Crée les projets de démonstration avec <code>python3 jarvis.py demo</code>, '
       + 'ou ouvre la démo fictive : <a href="?demo=1" style="color:#4CC9FF">?demo=1</a>.';
   }
-  const voix = {
-    parler(n) { etatVoix.parle = n > 0; if (sphere) sphere.parler(n); },
-    ecouter(o) { if (sphere) sphere.ecouter(o); },
-  };
+  if (sphere) sphere.brancherParole(parole);
+  const voix = { ecouter(o) { if (sphere) sphere.ecouter(o); } };
 
   // Choix du projet interrogé (un projet à la fois ; « tous » = lecture seule).
   const choix = $('projet');
@@ -188,7 +193,7 @@ async function demarrer() {
           if (sel) ligne.completer(`${sel.notees} neurones notés · ${sel.retenues.length} notes retenues · ${sel.liens} liens utilisés`);
         }
         afficher(reponse.affichage);
-        await conv.dire(reponse.reponse);
+        await conv.dire(reponse.reponse, { origine: projet });
         tableau.journal();
         return;
       }
@@ -197,7 +202,7 @@ async function demarrer() {
       conv.outil(reponse.outil || '—', reponse.routeur);
       afficher(reponse.affichage);
       if (reponse.ouvrir_note) editeur.ouvrir(reponse.ouvrir_note.projet, reponse.ouvrir_note.id);
-      await conv.dire(reponse.reponse || '…');
+      await conv.dire(reponse.reponse || '…', { origine: projet });
       tableau.journal();
     } catch (e) {
       await conv.dire(`Je n’ai pas pu répondre : ${e.message}`);
@@ -206,7 +211,7 @@ async function demarrer() {
     }
   }
 
-  conv = creerConversation({ sphere: voix, surQuestion: demander });
+  conv = creerConversation({ sphere: voix, parole, surQuestion: demander });
   conv.proposer(source.mode === 'demo' ? SUGGESTIONS_DEMO
     : SUGGESTIONS_REELLES.concat(source.peutSimulerNuit ? ['Simule une nuit'] : []));
   const nb = donnees.projets.length;
@@ -217,7 +222,7 @@ async function demarrer() {
   synchroniserAlertes();
 
   if (page === 'catalogue') installerCatalogue({ demander, holo, conv });
-  window.__JARVIS = { pret: true, source, sphere, holo, demander, mode: source.mode,
+  window.__JARVIS = { pret: true, source, sphere, holo, demander, parole, mode: source.mode,
     get occupe() { return conv.occupe; } };
 }
 
