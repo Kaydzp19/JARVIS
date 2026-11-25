@@ -48,3 +48,7 @@ contrainte_objectifs=
 
 # Mot de passe du cockpit web. Vide = un jeton différent à chaque lancement.
 COCKPIT_JETON=
+
+# Position pour l'hologramme météo (Open-Meteo, sans clé). Vide = pas de météo.
+METEO_LATITUDE=
+METEO_LONGITUDE=

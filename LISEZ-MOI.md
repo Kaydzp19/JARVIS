@@ -51,25 +51,27 @@ La démo utilise de **fausses données** (« Projet A » et « Projet B ») rang
    3. Orchestrateur : les 4 voies d'agents font leurs propositions ;
    4. Garde d'écriture : une proposition validée par la commande `python3 -m noyau.valider` ;
    5. Corps calleux : la mémoire lue par un vrai client MCP, comme le ferait Claude ;
-   6. Interface : ton navigateur s'ouvre sur le **cerveau 3D**. Laisse le Terminal ouvert.
+   6. Interface : ton navigateur s'ouvre sur la **sphère** (voir « L'interface sphère » plus bas).
+      Laisse le Terminal ouvert.
 6. **À essayer dans le navigateur :**
-   - **Cerveau 3D** : glisse pour tourner, clique sur un neurone pour voir ses liens et leur poids ;
-     **Simuler une nuit** déroule une vraie nuit (tri, analyse, rêve, réveil) ; onglets Projet A / B.
-   - **Cockpit** : l'ordre du moment (Fait / Pas fait), les propositions à **Valider** ou
-     **Refuser**, les 4 voies d'agents, le journal qui se met à jour tout seul, l'idée du jour.
+   - **Sphère** : pose une question (« Que sais-tu de ce projet ? »), regarde la vague orange,
+     puis l'hologramme des notes retenues ; « État de ma machine », « Graphique de mes dépenses »,
+     « Simule une nuit » ; **Valider** / **Refuser** dans la colonne de droite.
+   - **Ancien cockpit** (bouton **COCKPIT** en haut, ou l'adresse `/cockpit`) : cerveau 3D,
+     l'ordre du moment (Fait / Pas fait), les 4 voies d'agents, l'idée du jour.
    - **Notes** : lire, écrire, relier avec `[[Titre]]`.
    - **Version iPhone** : rétrécis la fenêtre ; le graphe passe en haut, les panneaux en liste dessous.
 7. **Arrêter** : **Ctrl + C** dans le Terminal. Repartir d'une démo neuve :
    `python3 exemples/demo.py --remplacer`.
 
-Sans Internet, tout marche sauf le cerveau en 3D (sa bibliothèque Three.js vient d'Internet) et
-les polices : l'aperçu 2D du cockpit le remplace.
+Sans Internet, tout marche sauf la 3D (sa bibliothèque Three.js vient d'Internet) et les
+polices : l'interface affiche alors la liste de tes notes (titres seulement).
 
 ## Avec tes vrais projets
 
 | Pour… | Commande (dans le dossier JARVIS) |
 |---|---|
-| Ouvrir l'interface sur tes données (`~/.jarvis/`) | `python3 jarvis.py cockpit` |
+| Ouvrir l'interface sur tes données (`~/.jarvis/`) | `python3 jarvis.py interface` |
 | Voir les propositions en attente | `python3 -m noyau.valider` |
 | Valider (ou refuser) une proposition | `python3 -m noyau.valider "Projet:3"` (`--refuser "raison"`) |
 | Lancer un tour de l'orchestrateur | `python3 jarvis.py tour` |
@@ -83,6 +85,46 @@ les polices : l'aperçu 2D du cockpit le remplace.
 
 Toutes les commandes : `python3 jarvis.py --help`. Pour essayer sur un autre dossier de données :
 `python3 jarvis.py --dossier /un/dossier …`.
+
+## L'interface « sphère » (marche 7)
+
+`python3 jarvis.py interface` ouvre l'interface dans ton navigateur (adresse locale
+`127.0.0.1`, protégée par un jeton). Au centre, **une seule sphère** : un neurone par note, une
+synapse par lien pondéré, une région par projet (jamais de synapse entre deux projets).
+
+- **Couleurs** : bleu = mémoire au repos ; **orange** = JARVIS cherche (vague d'activation) ;
+  **jaune** = une proposition attend ta validation (deux anneaux sur les notes concernées).
+- **Gestes** : glisser pour tourner (avec élan), molette ou pincement pour zoomer, flèches et
+  `+` / `-` au clavier ; survoler ou cliquer un neurone affiche son titre, son projet et ses liens.
+- **Une question** (colonne de gauche) déclenche la **vague en 4 temps** (environ 10 s) :
+  1 notation de tous les neurones (par code, sans IA), 2 propagation le long des synapses,
+  3 sélection (les notes gardées, numérotées, face à toi), 4 réponse. La ligne « OUTIL » montre
+  l'appel exact, par exemple `se_souvenir(projet="Projet A", requête="…")` et
+  « routeur : aucun appel IA ». Seuls des identifiants, des titres et des scores voyagent : jamais
+  le texte des notes.
+- **Les hologrammes** n'apparaissent qu'à la demande : notes retenues, graphique des dépenses,
+  machine, météo, résumé de la nuit, note sensible refusée. Tu peux les **déplacer**, les
+  **redimensionner**, les **épingler** (ils ne se ferment plus tout seuls), tourner leur objet 3D,
+  changer la **période**, **trier**, **filtrer** ; **Échap** ou **×** les ferme. Cliquer une
+  note retenue l'allume sur la sphère ; « Ouvrir la note » ouvre l'éditeur local (jamais pour
+  une note sensible).
+- **Garde d'écriture** : un bouton marqué « · à valider » n'exécute rien. Il crée une
+  proposition qui apparaît dans **À valider** ; seule ta validation écrit dans la mémoire.
+- **Colonne de droite** : Système (CPU, RAM, disque, batterie, sans droits administrateur),
+  Dépense IA (session, aujourd'hui, ce mois, plafond), À valider, Journal du jour (projets
+  sensibles masqués).
+- **Météo** (facultative) : renseigne `METEO_LATITUDE` et `METEO_LONGITUDE` dans
+  `~/.jarvis/reglages.local`. Sinon, l'hologramme l'indique simplement.
+- **Mode démo** : `?demo=1` à la fin de l'adresse affiche une démo fictive (220 neurones, badge
+  « Démo · données fictives ») sans toucher à tes données. Le **catalogue**
+  (`/sphere/catalogue.html`) montre chaque hologramme avec de fausses données.
+- **iPhone** : la sphère en haut, la conversation dessous, puis les widgets en liste.
+- Navigateur : Chrome ou Safari récent, avec WebGL. Sans WebGL, un message clair et la liste de
+  tes notes (titres) s'affichent à la place de la sphère.
+
+Tests : `python3 jarvis.py tests` lance aussi les tests JavaScript (si Node.js est installé).
+Le test complet dans un navigateur (environ 2 minutes) se lance à part :
+`JARVIS_E2E=1 python3 -m unittest interface.test_e2e_sphere` (Node.js et Playwright requis).
 
 ## Démo en ligne (Vercel)
 
@@ -153,7 +195,10 @@ Ce fichier est créé tout seul à la première commande, **hors du dépôt**. L
 | `noyau/valider.py` | La garde d'écriture humaine : `python3 -m noyau.valider` |
 | `noyau/sommeil.py`, `noyau/reve.py`, `noyau/ia_demo.py` | Sommeil (tri, analyse) et rêve (rêve, réveil) ; l'IA simulée |
 | `noyau/modules.py`, `modules/notifications/` | La prise standard des modules et le premier module |
-| `interface/` | Le serveur web local (127.0.0.1 seulement) et la page : cerveau 3D, cockpit, notes, journal |
+| `interface/serveur_web.py`, `interface/conversation.py`, `interface/fournisseurs.py` | Le serveur web local (127.0.0.1 seulement), la conversation (routage par code) et les données des widgets |
+| `interface/sphere/` | L'interface « sphère » : `js/` (sphère, vague, nuit, conversation, tableau, hologrammes), `css/`, catalogue, tests |
+| `interface/cockpit.html` | L'ancien cockpit (cerveau 3D, notes, journal), à l'adresse `/cockpit` |
+| `noyau/affichage.py` | Le contrat des hologrammes : événements validés, mises à jour, garde d'écriture des widgets |
 | `exemples/demo.py` | La démo de bout en bout |
 | `exemples/export_demo.py`, `vercel-demo/`, `vercel.json` | La démo en ligne : export, site statique, réglage Vercel |
 | `jarvis.py` | La « télécommande » : toutes les commandes |
@@ -165,12 +210,21 @@ qui est particulier devient un module dans `modules/`.
 
 ## Maquettes
 
-- Dans le dépôt : [cerveau 3D](docs/maquettes/cerveau-3d.png) · [cockpit](docs/maquettes/cockpit.png) ·
+- Interface sphère : [notes retenues](docs/maquettes/sphere-1440x880-notes-retenues.png) ·
+  [machine](docs/maquettes/sphere-1440x880-machine.png) ·
+  [iPhone](docs/maquettes/sphere-390x844-notes-retenues.png) ·
+  [graphique](docs/maquettes/catalogue-1440x880-graphique.png) ·
+  [météo](docs/maquettes/catalogue-1440x880-meteo.png) ·
+  [après la nuit](docs/maquettes/catalogue-1440x880-apres-la-nuit.png)
+- Ancien cockpit : [cerveau 3D](docs/maquettes/cerveau-3d.png) · [cockpit](docs/maquettes/cockpit.png) ·
   [iPhone, cerveau](docs/maquettes/iphone-cerveau.png) · [iPhone, cockpit](docs/maquettes/iphone-cockpit.png)
 - Maquettes de référence (privées, sur ton compte claude.ai) :
   [cerveau 3D](https://claude.ai/artifact/KeQgGmVcuthtFE3QT6oxmc) ·
   [cockpit Mac et iPhone](https://claude.ai/artifact/DkTEuJwajiCwFuZM3fv83d)
-- Direction visuelle : fond `#030811`, cyan `#5CE1FF` dominant, blanc `#E6F7FF`, gris-bleu `#86A9BC`,
+- Interface sphère : fond `#010409`, bleu-cyan `#4CC9FF` → blanc bleuté au repos, orange `#FF8A3D`
+  pour l'activation, jaune `#FFD84A` pour ce qui attend ta validation, texte `#F1F8FF`,
+  gris-bleu `#8FA9C2` ; maquette de référence : `exemples/JARVIS_maquette_sphere.html`.
+- Ancien cockpit : fond `#030811`, cyan `#5CE1FF` dominant, blanc `#E6F7FF`, gris-bleu `#86A9BC`,
   ambre `#FFB547` réservé à ce qui demande une action ; titres en Rajdhani, données en JetBrains Mono.
 
 ## Règle d'or : aucun secret dans ce dépôt

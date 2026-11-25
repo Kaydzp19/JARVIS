@@ -28,6 +28,9 @@ DEFAUTS = {
     "CLE_API_GEMINI": "",
     "CLE_API_ANTHROPIC": "",
     "COCKPIT_JETON": "",
+    # --- Interface : météo (facultatif ; vide = pas de météo, aucun appel réseau) ---
+    "METEO_LATITUDE": "",
+    "METEO_LONGITUDE": "",
     # --- Routeur IA ---
     "mode_ia": "simule",              # simule (sans clé) ou reel
     "modele_gemini": "gemini-2.5-flash",
@@ -81,6 +84,12 @@ contrainte_budget_eur=0
 contrainte_niveau=débutant
 # Tes objectifs, en quelques mots séparés par des virgules.
 contrainte_objectifs=
+
+# --- Interface : météo (facultatif) ---
+# Ta position, pour l'hologramme météo (service Open-Meteo, sans clé). Vide = pas de météo.
+# Exemple pour Paris : METEO_LATITUDE=48.85 et METEO_LONGITUDE=2.35
+METEO_LATITUDE=
+METEO_LONGITUDE=
 
 # --- Clés API (facultatif ; à remplir toi-même, jamais dans le chat) ---
 # CLE_API_GEMINI=

@@ -4,7 +4,8 @@ JARVIS : la commande principale (la « télécommande »).
 
 Exemples (depuis le dossier du dépôt) :
     python3 jarvis.py demo         démo (Projet A, Projet B, fausses données) + interface
-    python3 jarvis.py cockpit      ouvre le cockpit web (cerveau 3D, tâches, propositions)
+    python3 jarvis.py interface    ouvre l'interface (sphère, conversation, hologrammes) ; l'ancien cockpit est à /cockpit
+    python3 jarvis.py cockpit      la même chose (ancien nom)
     python3 jarvis.py maintenant   affiche ce qu'il faut faire maintenant
     python3 jarvis.py tour         un tour de l'orchestrateur (observer, décider, agir, mesurer)
     python3 jarvis.py dormir [projet]     le sommeil et le rêve (un projet ou tous, 1 fois / 24 h)
@@ -196,10 +197,12 @@ def main(argv=None):
     s.add_argument("--remplacer", action="store_true", help="recréer la démo de zéro")
     s.add_argument("--sans-navigateur", action="store_true")
     s.set_defaults(f=cmd_demo)
-    s = sous.add_parser("cockpit", help="ouvrir le cockpit web")
-    s.add_argument("--port", type=int, default=8765)
-    s.add_argument("--sans-navigateur", action="store_true")
-    s.set_defaults(f=cmd_cockpit)
+    for nom, aide in (("interface", "ouvrir l'interface (sphère, conversation, hologrammes)"),
+                      ("cockpit", "ouvrir l'interface (ancien nom ; l'ancien cockpit est à /cockpit)")):
+        s = sous.add_parser(nom, help=aide)
+        s.add_argument("--port", type=int, default=8765)
+        s.add_argument("--sans-navigateur", action="store_true")
+        s.set_defaults(f=cmd_cockpit)
     sous.add_parser("maintenant", help="la prochaine action").set_defaults(f=cmd_maintenant)
     sous.add_parser("tour", help="un tour de l'orchestrateur").set_defaults(f=cmd_tour)
     s = sous.add_parser("dormir", help="le sommeil et le rêve (un projet ou tous)")
