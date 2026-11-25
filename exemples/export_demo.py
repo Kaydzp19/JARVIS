@@ -9,13 +9,17 @@ Export de la démo pour la version en ligne (site statique, ex. Vercel).
 2. Exporte dans vercel-demo/data/ des fichiers JSON qui ne contiennent QUE des
    titres, des liens, des poids, des statuts et le journal : jamais le texte des
    notes, jamais de chemin local, jamais de clé.
-3. Construit vercel-demo/index.html à partir de l'interface (interface/cockpit.html) :
-   la page lit ces JSON au lieu du serveur Python.
+3. Construit le site :
+   - vercel-demo/index.html : l'interface « sphère » (interface/sphere/), en mode démo
+     forcé : fausses données calculées dans le navigateur, sans serveur ;
+   - vercel-demo/sphere/ : ses fichiers (CSS, JavaScript, catalogue des hologrammes) ;
+   - vercel-demo/cockpit.html : l'ancien cockpit (interface/cockpit.html), qui lit les JSON.
 """
 
 import json
 import os
 import re
+import shutil
 import sys
 import tempfile
 from datetime import timedelta
@@ -180,7 +184,7 @@ STYLE_BANDEAU = """
 def construire_page(source=None, destination=None):
     """Copie interface/cockpit.html en version en ligne : bandeau, et serveur remplacé par js/demo.js."""
     source = Path(source or RACINE_DEPOT / "interface" / "cockpit.html")
-    destination = Path(destination or DOSSIER_SITE / "index.html")
+    destination = Path(destination or DOSSIER_SITE / "cockpit.html")
     html = source.read_text(encoding="utf-8")
     remplacements = [
         ("<title>JARVIS · Second cerveau</title>", "<title>JARVIS · Démo en ligne</title>"),
@@ -205,6 +209,54 @@ def construire_page(source=None, destination=None):
     return destination
 
 
+# ------------------------------------------------------------------
+# L'interface « sphère » en ligne (aucun serveur : démo dans le navigateur)
+# ------------------------------------------------------------------
+
+SOURCE_SPHERE = RACINE_DEPOT / "interface" / "sphere"
+GENERE = "<!-- Page GÉNÉRÉE par exemples/export_demo.py à partir de interface/sphere/ : ne pas la modifier à la main. -->"
+
+
+def fichiers_sphere():
+    """Les fichiers publiés de l'interface (sans les tests). Chemins relatifs à interface/sphere/."""
+    return sorted(f.relative_to(SOURCE_SPHERE) for f in SOURCE_SPHERE.rglob("*")
+                  if f.is_file() and "tests" not in f.relative_to(SOURCE_SPHERE).parts
+                  and f.suffix in (".html", ".css", ".js"))
+
+
+def page_sphere_en_ligne(html):
+    """La page de l'interface, en mode « démo en ligne » (pas de serveur)."""
+    remplacements = [
+        ('<body data-page="interface">', '<body data-page="interface" data-mode="demo-en-ligne">'),
+        ('<body data-page="catalogue">', '<body data-page="catalogue" data-mode="demo-en-ligne">'),
+        ("<title>JARVIS · Second cerveau</title>", "<title>JARVIS · Démo en ligne</title>"),
+    ]
+    for avant, apres in remplacements:
+        html = html.replace(avant, apres, 1)
+    if 'data-mode="demo-en-ligne"' not in html:
+        raise RuntimeError("Interface inattendue : <body data-page=…> introuvable.")
+    return html.replace("<!doctype html>", "<!doctype html>\n" + GENERE, 1)
+
+
+def construire_sphere(destination=None):
+    """Copie interface/sphere/ dans le site : index.html (sphère) + sphere/ (CSS, JS, catalogue)."""
+    destination = Path(destination or DOSSIER_SITE)
+    cible = destination / "sphere"
+    if cible.exists():
+        shutil.rmtree(cible)
+    for rel in fichiers_sphere():
+        f = cible / rel
+        f.parent.mkdir(parents=True, exist_ok=True)
+        texte = (SOURCE_SPHERE / rel).read_text(encoding="utf-8")
+        f.write_text(page_sphere_en_ligne(texte) if rel.suffix == ".html" else texte, encoding="utf-8")
+    index = destination / "index.html"
+    index.write_text(page_sphere_en_ligne((SOURCE_SPHERE / "index.html").read_text(encoding="utf-8")),
+                     encoding="utf-8")
+    (cible / "index.html").unlink()          # la page d'accueil du site suffit
+    return index
+
+
 if __name__ == "__main__":
     exporter()
     print("Page construite : " + str(construire_page().relative_to(RACINE_DEPOT)))
+    print("Interface construite : " + str(construire_sphere().relative_to(RACINE_DEPOT)))

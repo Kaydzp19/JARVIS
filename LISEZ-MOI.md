@@ -132,9 +132,12 @@ Le dossier `vercel-demo/` est une **version de démonstration** de l'interface, 
 fichiers (HTML, JavaScript, JSON), qu'on peut publier telle quelle sur Vercel (un hébergeur de
 sites) : aucun serveur Python, aucune clé, aucune donnée réelle.
 
-- **Ce qu'elle montre** : les deux projets fictifs de la démo (cerveau 3D, cockpit, notes, journal),
-  avec leurs titres, liens, poids, propositions et journal. Jamais le texte des notes.
-- **Ce qu'on peut y faire** : « Simuler une nuit » (oubli 0,02, apprentissage 0,10, archivage sous
+- **Page d'accueil = l'interface « sphère »**, en mode démo : 220 neurones fictifs calculés dans
+  le navigateur, la vague en 4 temps, les hologrammes, « Simule une nuit », la garde d'écriture.
+  Le **catalogue** des hologrammes est à `/sphere/catalogue.html`.
+- **L'ancien cockpit** est à `/cockpit` : les deux projets fictifs de la démo (cerveau 3D, cockpit,
+  notes, journal), avec leurs titres, liens, poids, propositions et journal. Jamais le texte des notes.
+- **Ce qu'on peut faire dans l'ancien cockpit** : « Simuler une nuit » (oubli 0,02, apprentissage 0,10, archivage sous
   0,05, calculés dans le navigateur, avec exactement les mêmes résultats que le vrai JARVIS),
   valider ou refuser une proposition, Fait / Pas fait, garder ou rejeter l'idée du jour. Un bandeau
   le rappelle : « Démo en ligne : données fictives, rien n'est enregistré ». Tout revient à zéro
@@ -147,8 +150,10 @@ python3 exemples/export_demo.py
 ```
 
 Le script fait tourner la démo dans un dossier temporaire (jamais `~/.jarvis`), puis écrit
-`vercel-demo/data/*.json` et `vercel-demo/index.html`. Un test (`interface/test_demo_en_ligne.py`)
-vérifie qu'aucun chemin local, aucune clé et aucun texte de note n'y figure.
+`vercel-demo/data/*.json`, `vercel-demo/cockpit.html`, et copie l'interface « sphère »
+(`vercel-demo/index.html` et `vercel-demo/sphere/`). Un test (`interface/test_demo_en_ligne.py`)
+vérifie que le site est à jour et qu'aucun chemin local, aucune clé et aucun texte de note n'y
+figure.
 
 **La voir sur ton Mac avant de la publier** :
 
@@ -156,11 +161,14 @@ vérifie qu'aucun chemin local, aucune clé et aucun texte de note n'y figure.
 python3 -m http.server 8000 --directory vercel-demo
 ```
 
-puis ouvre http://localhost:8000 dans ton navigateur (**Ctrl + C** pour arrêter).
+puis ouvre http://localhost:8000 dans ton navigateur (**Ctrl + C** pour arrêter). Avec ce petit
+serveur, l'ancien cockpit est à http://localhost:8000/cockpit.html (sur Vercel : `/cockpit`).
 
 **La publier sur Vercel** : sur vercel.com, « Add New… › Project », importe le dépôt GitHub, choisis
 la branche `vercel-demo`, et laisse les réglages par défaut : le fichier `vercel.json` (à la racine)
-dit déjà à Vercel de servir le dossier `vercel-demo/` sans rien construire.
+dit déjà à Vercel de servir le dossier `vercel-demo/` sans rien construire. Une fois le projet
+branché, **chaque branche poussée sur GitHub** reçoit aussi sa propre adresse d'aperçu (« Preview »)
+dans le tableau de bord Vercel.
 
 **La limite** : c'est une démo, **pas le vrai JARVIS**. Pas de mémoire qui se garde, pas de
 corps calleux (MCP), pas d'agents qui tournent, pas d'IA, pas de sommeil complet (seules les

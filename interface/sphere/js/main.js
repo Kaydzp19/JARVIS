@@ -56,11 +56,15 @@ function sansWebGL(donnees) {
 
 async function demarrer() {
   const page = document.body.dataset.page || 'interface';
-  const source = await choisirSource({ forcerDemo: page === 'catalogue' });
+  // data-mode="demo-en-ligne" : site statique (Vercel), sans serveur : démo dans le navigateur.
+  const enLigne = document.body.dataset.mode === 'demo-en-ligne';
+  const source = await choisirSource({ forcerDemo: page === 'catalogue' || enLigne });
+  if (enLigne) source.repli = 'Démo en ligne : données fictives, calculées dans ton navigateur. Rien n’est enregistré. '
+    + 'Pose une question, ou essaie « Simule une nuit ».';
   let donnees = await source.sphere();
   const demo = source.mode === 'demo' || !!donnees.demo;
   $('badge-demo').hidden = !demo;
-  if (source.repli) $('lien-cockpit').hidden = true;
+  if (source.repli && !enLigne) $('lien-cockpit').hidden = true;
   if (source.mode === 'reel') source.peutSimulerNuit = donnees.projets.some((p) => p.demo);
   horloge(); setInterval(horloge, 20000);
 
