@@ -406,5 +406,6 @@ export function creerHologrammes({ sphere, centre, surAction, surNote, surOuvrir
     get courant() { return o.visible && o.cible > 0 ? o.ev : null; },
     get visible() { return o.visible && o.cible > 0; },
     get ui() { return o.ui; },
+    get heros() { return o.heros ? { ...o.heros.userData.rotation, zoom: o.heros.userData.zoom } : null; },
   };
 }

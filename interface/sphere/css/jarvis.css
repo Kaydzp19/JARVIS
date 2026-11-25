@@ -188,6 +188,7 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
 @media (max-width:560px){
   .etq{font-size:10px;padding:2px 7px 2px 6px}
   .holo .controles{bottom:6px;right:6px}
+  .holo .controles input[type=search]{display:none}
   .holo .controles button,.holo .controles select{height:24px;padding:0 7px;font-size:9.5px}
 }
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
