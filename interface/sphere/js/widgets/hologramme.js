@@ -28,7 +28,8 @@ col+=vec3(0.35,0.8,1.0)*line;a=max(a,line*0.85*step(0.001,uProg));gl_FragColor=v
 const EPINGLE = '<svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><path d="M5 1h6l-1 5 3 3H3l3-3z M8 9v6" fill="none" stroke="currentColor" stroke-width="1.4"/></svg>';
 const LIBELLES_TRI = { rang: 'rang', score: 'score', titre: 'titre', cpu: 'processeur', ram: 'mémoire', nom: 'nom' };
 
-export function creerHologrammes({ sphere, centre, surAction, surNote, surOuvrirNote, annoncer, vivant }) {
+export function creerHologrammes({ sphere, centre, surAction, surNote, surOuvrirNote, annoncer, vivant,
+  surTache = () => {}, surDeposer = () => {}, surBouton = () => {} }) {
   const S = sphere.S, reduit = mouvementReduit();
   const registre = creerRegistre();
   const groupe = new THREE.Group();
@@ -138,6 +139,7 @@ export function creerHologrammes({ sphere, centre, surAction, surNote, surOuvrir
       herosEl.hidden = !o.herosRect;
       if (o.herosRect) Object.assign(herosEl.style, { left: h.x + 'px', top: h.y + 'px', width: h.w + 'px', height: h.h + 'px' });
     }
+    o.geom = res.geom || null;
     majZones(res.zones || []);
     placer();
   }
@@ -165,8 +167,37 @@ export function creerHologrammes({ sphere, centre, surAction, surNote, surOuvrir
       b.addEventListener('focus', montrer);
       b.addEventListener('pointerleave', () => { if (o.infoFixe !== z.id) cacherInfo(); });
       b.addEventListener('blur', () => { if (o.infoFixe !== z.id) cacherInfo(); });
-      b.addEventListener('click', () => cliquerZone(o.zones[i]));
+      b.addEventListener('click', () => { if (b.dataset.glisse) { delete b.dataset.glisse; return; } cliquerZone(o.zones[i]); });
+      if (z.deplacable) glisserZone(b, i);
+      if (z.couleur) b.style.setProperty('--zone', z.couleur);
       zonesEl.appendChild(b);
+    });
+  }
+  /** Glisser une tâche à la souris (ou au doigt) : la scène traduit la position en date et heure. */
+  function glisserZone(b, i) {
+    b.style.touchAction = 'none';
+    b.addEventListener('pointerdown', (e) => {
+      const z = o.zones[i], x0 = e.clientX, y0 = e.clientY;
+      let dx = 0, dy = 0, parti = false;
+      b.setPointerCapture(e.pointerId);
+      const bouger = (m) => {
+        dx = m.clientX - x0; dy = m.clientY - y0;
+        if (!parti && Math.hypot(dx, dy) > 6) { parti = true; o.glisse = true; b.classList.add('glisse'); cacherInfo(); }
+        if (parti) b.style.transform = `translate(${dx}px,${dy}px)`;
+      };
+      const finir = () => {
+        b.removeEventListener('pointermove', bouger);
+        b.removeEventListener('pointerup', finir);
+        b.removeEventListener('pointercancel', finir);
+        if (!parti) return;
+        b.dataset.glisse = '1';
+        o.glisse = false; b.classList.remove('glisse'); b.style.transform = '';
+        const r = o.scene.deposer && o.scene.deposer(z, z.x + z.w / 2 + dx, z.y + z.h / 2 + dy, o.ev, o.ui, o.geom);
+        if (r) surDeposer(o.ev, z, r);
+      };
+      b.addEventListener('pointermove', bouger);
+      b.addEventListener('pointerup', finir);
+      b.addEventListener('pointercancel', finir);
     });
   }
   function montrerInfo(z) {
@@ -180,6 +211,7 @@ export function creerHologrammes({ sphere, centre, surAction, surNote, surOuvrir
   }
   function cacherInfo() { info.hidden = true; }
   function cliquerZone(z) {
+    if (z.type === 'tache') { surTache(o.ev, z.tache); return; }
     if (z.type === 'note') {
       o.ui.selection = o.ui.selection === z.id ? null : z.id;
       if (o.ui.selection && surNote) surNote(z.note);
@@ -220,8 +252,17 @@ export function creerHologrammes({ sphere, centre, surAction, surNote, surOuvrir
       });
       controles.appendChild(g);
     };
-    if (c.onglets) groupeBoutons(c.onglets, 'onglet', () => dessiner(), 'Onglets');
-    if (c.filtres) groupeBoutons(c.filtres, 'filtreChoix', () => dessiner(), 'Filtres');
+    // Une scène peut demander de nouvelles données quand on change d'onglet ou de filtre.
+    const surOnglet = o.scene.ongletsServeur ? (v) => surAction(o.ev, 'onglet', { vue: v }) : () => dessiner();
+    const surFiltre = o.scene.filtresServeur ? (v) => surAction(o.ev, 'filtre', { projet: v }) : () => dessiner();
+    if (c.onglets) groupeBoutons(c.onglets, 'onglet', surOnglet, 'Onglets');
+    if (c.filtres && c.filtres.length > 3) {
+      const s = el('select'); s.setAttribute('aria-label', 'Filtrer');
+      c.filtres.forEach((v) => { const op = el('option', '', v); op.value = v; s.appendChild(op); });
+      s.value = o.ui.filtreChoix || c.filtres[0];
+      s.addEventListener('change', () => { o.ui.filtreChoix = s.value; surFiltre(s.value); });
+      controles.appendChild(s);
+    } else if (c.filtres) groupeBoutons(c.filtres, 'filtreChoix', surFiltre, 'Filtres');
     if (c.periode) groupeBoutons(c.periode, 'periode', (p) => surAction(o.ev, 'periode', { periode: p }), 'Période');
     if (o.scene.filtreTexte) {
       const i = el('input'); i.type = 'search'; i.placeholder = 'filtrer'; i.setAttribute('aria-label', 'Filtrer la liste');
@@ -236,6 +277,11 @@ export function creerHologrammes({ sphere, centre, surAction, surNote, surOuvrir
       s.addEventListener('change', () => { o.ui.tri = s.value; dessiner(); });
       controles.appendChild(s);
     }
+    (o.scene.boutons ? o.scene.boutons(o.ev) : []).forEach((x) => {   // gestes locaux de Kayd
+      const b = el('button', '', x.libelle); b.type = 'button'; b.dataset.local = x.id;
+      b.addEventListener('click', () => surBouton(o.ev, x.id));
+      controles.appendChild(b);
+    });
     (o.ev.actions || []).forEach((a) => {
       const ecrit = a.type === 'ecriture';
       const b = el('button', ecrit ? 'ecrire' : '', ecrit ? `${a.libelle} · à valider` : a.libelle);
@@ -262,6 +308,7 @@ export function creerHologrammes({ sphere, centre, surAction, surNote, surOuvrir
     if (r.geste === 'mettre_a_jour' && o.visible && o.ev && o.ev.id === r.ev.id) {
       o.ev = r.ev;
       if (r.ev.donnees.periode) o.ui.periode = r.ev.donnees.periode;
+      if (o.scene.uiDepuis) { Object.assign(o.ui, o.scene.uiDepuis(r.ev)); construireControles(); }
       dessiner();
       if (annoncer) annoncer(`Hologramme mis à jour : ${r.ev.titre}.`);
       return r;
@@ -275,7 +322,7 @@ export function creerHologrammes({ sphere, centre, surAction, surNote, surOuvrir
     o.ev = ev; o.scene = sceneDe(ev.scene);
     const c = ev.controles || {};
     o.ui = { tri: c.tri ? c.tri[0] : null, periode: ev.donnees.periode || null, onglet: c.onglets ? c.onglets[0] : null,
-      filtre: '', filtreChoix: null, selection: null };
+      filtre: '', filtreChoix: null, selection: null, ...(o.scene.uiDepuis ? o.scene.uiDepuis(ev) : {}) };
     o.ttl = dureeAffichage(ev); o.epingle = false; o.infoFixe = null;
     bEpingle.setAttribute('aria-pressed', 'false');
     o.boite = boiteInitiale();
@@ -319,8 +366,7 @@ export function creerHologrammes({ sphere, centre, surAction, surNote, surOuvrir
   });
   document.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape' || !o.visible || o.cible === 0) return;
-    const dlg = document.getElementById('editeur');
-    if (dlg && dlg.open) return;
+    if (document.querySelector('dialog[open]')) return;     // Échap ferme d'abord la fenêtre ouverte
     fermer();
   });
   function glisser(element, surMouvement) {

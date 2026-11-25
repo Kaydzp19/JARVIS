@@ -6,6 +6,7 @@
 
 import { valider, normaliser as normaliserEv } from './widgets/contrat.js';
 import { empreinte, normaliser, rng } from './outils.js';
+import * as PL from './planification.js';
 
 export const PROJETS_DEMO = [
   { nom: 'Projet A', n: 96 }, { nom: 'Projet B', n: 72 }, { nom: 'Projet C', n: 52 },
@@ -132,6 +133,7 @@ export function router(texte) {
   if (/\bmac\b|machine|ordinateur|cpu|\bram\b|processeur|systeme|disque|batterie/.test(t)) return 'machine';
   if (/meteo|pluie|pleuvoir|temperature d/.test(t)) return 'meteo';
   if (/graphique|courbe|histogramme|depense|budget|cout/.test(t)) return 'graphique';
+  if (/planification|planning|planifier|agenda|\btaches?\b|demain|aujourd.hui|semaine|rendez/.test(t)) return 'planification';
   if (/nuit|resume|bilan|sommeil/.test(t)) return 'resume_nuit';
   if (/carte|tableau|inconnu/.test(t)) return 'generique';
   return 'se_souvenir';
@@ -157,6 +159,64 @@ export function creerSourceDemo(options = {}) {
   for (let i = 0; i < 24; i++) sys.hist.push({ heure: '', cpu: 30 + 8 * Math.sin(i / 3) + r() * 6, ram: 62 });
   let derniereNuit = { renforcees: 14, archivees: 3, syntheses: 1, date: null };
   const aujourdHui = new Date();
+
+  // ---- Planification (fausses tâches, en mémoire seulement) ----
+  const deux = (n) => String(n).padStart(2, '0');
+  const dateLocale = (d) => `${d.getFullYear()}-${deux(d.getMonth() + 1)}-${deux(d.getDate())}`;
+  const auj = options.aujourdhui || dateLocale(aujourdHui);
+  const taches = Object.fromEntries(projets.map((p) => [p.nom, []]));
+  const titresNotes = Object.fromEntries(projets.map((p) => [p.nom, Object.fromEntries(p.neurones.map((n) => [n.id, n.titre]))]));
+  let idTache = 0;
+  const ajouterTache = (projet, champs) => {
+    const notes = projets.find((p) => p.nom === projet).neurones;
+    const t = PL.validerChamps(champs, { notes });
+    idTache++;
+    taches[projet].push({ id: idTache, statut: 'à faire', echeance: null, heure: null, rappel: null, note_id: null, ...t,
+      ancre: t.recurrence !== 'aucune' ? t.echeance : null });
+    return idTache;
+  };
+  [['Projet A', [['Revoir le budget', 0, '09:30', 45, 'haute', 'aucune', 0], ['Point d’équipe', 1, '10:00', 30, 'normale', 'hebdomadaire', 3],
+    ['Écrire la synthèse', 2, '14:00', 90, 'normale', 'aucune', 5], ['Sport', 0, '18:30', 60, 'basse', 'jours_ouvres', null]]],
+   ['Projet B', [['Préparer le rendez-vous', 1, '16:00', 60, 'haute', 'aucune', 7], ['Relire les idées', 3, '11:00', 30, 'normale', 'aucune', 9]]],
+   ['Projet C', [['Tester la démo', 2, '09:00', 45, 'normale', 'aucune', 2], ['Rangement mensuel', 4, '17:00', 30, 'basse', 'mensuelle', null]]],
+  ].forEach(([projet, liste]) => liste.forEach(([titre, j, heure, duree, priorite, recurrence, k]) => {
+    const p = projets.find((x) => x.nom === projet);
+    ajouterTache(projet, { titre, date: PL.plusJours(auj, j), heure, duree, priorite, recurrence, rappel: j === 0 ? 10 : null,
+      note_id: k == null ? null : p.neurones[k].id });
+  }));
+  const trouverTache = (projet, id) => {
+    const t = (taches[projet] || []).find((x) => x.id === Number(id));
+    if (!t) throw new Error('Tâche introuvable.');
+    return t;
+  };
+  function externes(debut, jours) {
+    const modeles = [['Travail', 'Réunion d’équipe', '09:30', 60], ['Perso', 'Sport', '18:00', 60],
+      ['Perso', 'Dentiste', '14:00', 45], ['Travail', 'Point client', '11:00', 30]];
+    const ev = [];
+    for (let i = 0; i < jours; i++) {
+      const d = PL.plusJours(debut, i), js = (PL.versDate(d).getUTCDay() + 6) % 7;
+      if (js > 4) continue;
+      const [cal, titre, h, duree] = modeles[(PL.versDate(d).getTime() / 864e5 | 0) % modeles.length];
+      const [hh, mm] = h.split(':').map(Number), fin = hh * 60 + mm + duree;
+      ev.push({ calendrier: cal, titre, debut: `${d}T${h}`, fin: `${d}T${deux(Math.floor(fin / 60))}:${deux(fin % 60)}`, journee: false });
+    }
+    return { disponible: true, evenements: ev, source: 'démo', masque: false, modifiable: false };
+  }
+  function donneesPlanif(projet, debut = auj, vue = 'semaine') {
+    let jours = 7;
+    if (vue === 'semaine') debut = PL.lundi(debut);
+    else if (vue === 'jour') jours = 1;
+    const l = PL.lister(taches, projet, debut, jours, titresNotes);
+    const p = projets.find((x) => x.nom === projet);
+    return { projet, lecture_seule: projet === '*', vue, debut, jours, aujourd_hui: auj,
+      projets: projets.map((x) => x.nom), taches: l.taches, sans_date: l.sans_date,
+      notes: p ? p.neurones.map((n) => ({ id: n.id, titre: n.titre })) : [],
+      externes: externes(debut, jours), priorites: PL.PRIORITES, recurrences: PL.RECURRENCES };
+  }
+  const evenementPlanif = (projet, debut, vue) => afficher({ scene: 'planification', titre: 'Planification', projet, fermeture: 0,
+    donnees: donneesPlanif(projet, debut, vue),
+    controles: { onglets: ['liste', 'jour', 'semaine'], filtres: projets.map((x) => x.nom).concat(['tous']) },
+    actions: [{ id: 'precedent', libelle: '◀' }, { id: 'aujourdhui', libelle: 'Aujourd’hui' }, { id: 'suivant', libelle: '▶' }] });
 
   const note = (heure, projet, acteur, evenement, prive = false) => {
     journal.unshift({ heure, projet, acteur, evenement, prive });
@@ -260,6 +320,15 @@ export function creerSourceDemo(options = {}) {
         return rep('se_souvenir', outil, reponse, ev, { projet: nom, traces });
       }
       if (route === 'nuit') return rep('nuit', 'sommeil.simuler()', '', null, null);
+      if (route === 'planification') {
+        const demain = /demain/.test(normaliser(texte)), jour = demain || /aujourd.hui/.test(normaliser(texte));
+        const cible = projet === '*' ? '*' : (trouver(projet) ? projet : 'Projet A');
+        const ev = evenementPlanif(cible, demain ? PL.plusJours(auj, 1) : auj, jour ? 'jour' : 'semaine');
+        const n = ev.donnees.taches.filter((t) => t.statut !== 'fait').length;
+        note(hm(), cible === '*' ? 'tous' : cible, 'affichage', 'planification');
+        return rep('planification', `planification(projet="${cible}", vue="${ev.donnees.vue}", debut="${ev.donnees.debut}")`,
+          `${n} tâche(s) à faire ${demain ? 'demain' : jour ? 'aujourd’hui' : 'cette semaine'}${cible === '*' ? ' dans tous tes projets (lecture seule)' : ` dans « ${cible} »`}. Les rendez-vous de l’agenda (démo) sont en violet.`, ev);
+      }
       if (route === 'note_privee') {
         const b = trouver('Projet B'), privee = b.neurones.find((n) => n.sensible);
         const ev = afficher({ scene: 'note_privee', titre: 'Note sensible', projet: 'Projet B',
@@ -311,6 +380,17 @@ export function creerSourceDemo(options = {}) {
         return { type: 'a_valider', proposition: p.id, projet: ev.projet };
       }
       let d = null;
+      if (ev.scene === 'planification') {
+        const vue = params.vue || ev.donnees.vue;
+        let projet = params.projet || ev.donnees.projet;
+        if (projet === 'tous') projet = '*';
+        let debut = params.debut || ev.donnees.debut;
+        const pas = vue === 'jour' ? 1 : 7;
+        if (action === 'precedent') debut = PL.plusJours(debut, -pas);
+        else if (action === 'suivant') debut = PL.plusJours(debut, pas);
+        else if (action === 'aujourdhui') debut = auj;
+        d = donneesPlanif(projet, debut, vue);
+      }
       if (ev.scene === 'graphique') d = donneesDepenses(params.periode || ev.donnees.periode);
       else if (ev.scene === 'machine') d = machine();
       else if (ev.scene === 'meteo') d = meteo();
@@ -321,6 +401,50 @@ export function creerSourceDemo(options = {}) {
       return { type: 'mise_a_jour', affichage: maj };
     },
     async systeme() { return machine(); },
+    /** ACTIONS HUMAINES sur les tâches (démo : en mémoire). */
+    async taches(action, projet, { id, champs = {}, fait } = {}) {
+      if (projet === '*' || !taches[projet]) throw new Error('La vue « tous les projets » est en lecture seule : choisis un projet.');
+      const notes = trouver(projet).neurones;
+      if (action === 'creer') {
+        const nid = ajouterTache(projet, champs);
+        note(hm(), projet, 'kayd', `tâche ${nid} créée : ${champs.titre}`);
+        return { ok: true, id: nid };
+      }
+      const t = trouverTache(projet, id);
+      if (action === 'modifier') {
+        const c = PL.validerChamps(champs, { partiel: true, notes });
+        Object.assign(t, c);
+        if (t.recurrence !== 'aucune' && ('echeance' in c || 'recurrence' in c)) t.ancre = t.echeance;
+        if (t.recurrence === 'aucune') t.ancre = null;
+        note(hm(), projet, 'kayd', `tâche ${id} modifiée`);
+        return { ok: true };
+      }
+      if (action === 'supprimer') {
+        taches[projet].splice(taches[projet].indexOf(t), 1);
+        note(hm(), projet, 'kayd', `tâche ${id} supprimée : ${t.titre}`);
+        return { ok: true };
+      }
+      if (action === 'terminer') {
+        const statut = fait ? 'fait' : 'pas fait';
+        if (t.recurrence !== 'aucune' && t.echeance) {
+          const avant = t.echeance;
+          t.echeance = PL.prochaineDate(t.echeance, t.recurrence, t.ancre);
+          note(hm(), projet, 'kayd', `tâche ${id} : ${statut} (occurrence du ${avant}), prochaine le ${t.echeance}`);
+          return { ok: true, statut, prochaine: t.echeance };
+        }
+        t.statut = statut;
+        note(hm(), projet, 'kayd', `tâche ${id} : ${statut}`);
+        return { ok: true, statut, prochaine: null };
+      }
+      throw new Error('Action inconnue.');
+    },
+    async prochaines(nombre = 3) {
+      const l = PL.lister(taches, '*', auj, 120, titresNotes).taches.filter((t) => t.statut !== 'fait');
+      const vus = new Set(), r = [];
+      for (const t of l) { const k = t.projet + t.id; if (vus.has(k)) continue; vus.add(k); r.push(t); if (r.length >= nombre) break; }
+      return r;
+    },
+    async ouvrirPlanification(projet = '*', debut = auj, vue = 'semaine') { return evenementPlanif(projet, debut, vue); },
     async depenses() {
       return { session: 0, appels_session: 0, aujourd_hui: 0.12, mois: 3.4, plafond: 10, mode_ia: 'simule',
         serie: seriesDepenses('6 mois').map((x) => ({ mois: x.etiquette, montant: x.valeur })) };

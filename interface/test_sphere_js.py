@@ -58,8 +58,23 @@ class TestJavaScript(TestTemporaire):
         phrases = ["État de ma machine", "cpu ?", "Va-t-il pleuvoir demain ?", "Météo", "Résumé de la nuit",
                    "Combien coûte l'IA ce mois ?", "Graphique de mes dépenses", "Ouvre la note Budget",
                    "montre-moi la note Offre !", "Que sais-tu du lancement ?", "Où en sont mes projets ?",
-                   "ma batterie", "le plafond"]
+                   "ma batterie", "le plafond", "Planification", "Mes tâches de demain",
+                   "Qu'est-ce que j'ai aujourd'hui ?", "mon agenda de la semaine", "un rendez-vous"]
         js = node("import { routerReel } from './js/donnees.js';"
                   "let d='';process.stdin.on('data',c=>d+=c).on('end',()=>{"
                   "console.log(JSON.stringify(JSON.parse(d).map(routerReel)));});", phrases)
         self.assertEqual(js, [conversation.router(p) for p in phrases])
+
+    def test_parite_de_la_recurrence(self):
+        from noyau import planification
+        cas = [["2027-01-01", "jours_ouvres"], ["2027-01-31", "mensuelle"], ["2028-01-31", "mensuelle"],
+               ["2027-12-29", "quotidienne"], ["2027-02-26", "hebdomadaire"], ["2027-01-02", "jours_ouvres"]]
+        js = node("import { suite } from './js/planification.js';"
+                  "let d='';process.stdin.on('data',c=>d+=c).on('end',()=>{"
+                  "console.log(JSON.stringify(JSON.parse(d).map(([a,r])=>{const l=[];"
+                  "for(const x of suite(a,r)){l.push(x);if(l.length>=8)break;}return l;})));});", cas)
+        py = []
+        for a, r in cas:
+            it = planification.suite(a, r)
+            py.append([next(it).isoformat() for _ in range(8)])
+        self.assertEqual(js, py)

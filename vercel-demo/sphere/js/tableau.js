@@ -6,7 +6,7 @@
 
 import { $, el, euros, fr } from './outils.js';
 
-export function creerTableau({ source, surDecision }) {
+export function creerTableau({ source, surDecision, surPlanif, surRappel }) {
   const barres = {};
   ['CPU', 'RAM', 'DISQUE', 'BATT.'].forEach((nom) => {
     const r = el('div', 'barre');
@@ -94,14 +94,57 @@ export function creerTableau({ source, surDecision }) {
     });
   }
 
+  // ---- Planification : les 3 prochaines tâches (vue transversale, lecture seule) ----
+  const libelleQuand = (t) => {
+    const auj = new Date(), deux = (n) => String(n).padStart(2, '0');
+    const iso = (d) => `${d.getFullYear()}-${deux(d.getMonth() + 1)}-${deux(d.getDate())}`;
+    const demain = new Date(auj); demain.setDate(auj.getDate() + 1);
+    const jour = t.date === iso(auj) ? 'aujourd’hui' : t.date === iso(demain) ? 'demain'
+      : new Date(t.date + 'T12:00').toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' }).replace('.', '');
+    return jour + (t.heure ? ' · ' + t.heure : '');
+  };
+  async function planif() {
+    let liste = [];
+    try { liste = await source.prochaines(3); } catch (e) { /* rien */ }
+    const u = $('planif-liste');
+    u.textContent = '';
+    if (!liste.length) { u.appendChild(el('li', 'vide', 'Aucune tâche à venir.')); return liste; }
+    liste.forEach((t) => {
+      const li = el('li'), b = el('button');
+      b.type = 'button';
+      b.appendChild(el('span', 't', t.titre));
+      b.appendChild(el('span', 'q', libelleQuand(t)));
+      b.appendChild(el('span', 'p', t.projet + (t.recurrence !== 'aucune' ? ' · récurrente' : '')));
+      b.setAttribute('aria-label', `${t.titre}, ${libelleQuand(t)}, ${t.projet} : ouvrir la planification`);
+      b.addEventListener('click', () => surPlanif && surPlanif(t));
+      li.appendChild(b); u.appendChild(li);
+    });
+    return liste;
+  }
+  // Rappels : une seule fois par tâche et par date, quand l'heure du rappel arrive.
+  const rappeles = new Set();
+  async function rappels() {
+    if (!surRappel) return;
+    let liste = [];
+    try { liste = await source.prochaines(10); } catch (e) { return; }
+    const maintenant = Date.now();
+    liste.forEach((t) => {
+      if (t.rappel == null || !t.date || !t.heure) return;
+      const debut = new Date(`${t.date}T${t.heure}:00`).getTime(), cle = `${t.projet}:${t.id}:${t.date}`;
+      if (!rappeles.has(cle) && maintenant >= debut - t.rappel * 60000 && maintenant < debut) { rappeles.add(cle); surRappel(t); }
+    });
+  }
+
   function demarrer() {
-    systeme(); depenses(); aValider(); journal();
+    systeme(); depenses(); aValider(); journal(); planif(); rappels();
     // Pas de mise à jour quand l'onglet est caché (aucun travail inutile).
     const siVisible = (f) => () => { if (!document.hidden) f(); };
     setInterval(siVisible(systeme), 5000);
     setInterval(siVisible(depenses), 30000);
     setInterval(siVisible(journal), 15000);
+    setInterval(siVisible(planif), 60000);
+    setInterval(rappels, 30000);
   }
 
-  return { demarrer, systeme, depenses, aValider, journal, get machine() { return derniereMachine; }, get attente() { return attente; } };
+  return { demarrer, systeme, depenses, aValider, journal, planif, get machine() { return derniereMachine; }, get attente() { return attente; } };
 }

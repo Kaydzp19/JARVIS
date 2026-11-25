@@ -86,5 +86,5 @@ export function normaliser(ev) {
   };
 }
 
-export const SCENES_CONNUES = ['notes_retenues', 'graphique', 'machine', 'meteo', 'resume_nuit', 'note_privee'];
+export const SCENES_CONNUES = ['notes_retenues', 'graphique', 'machine', 'meteo', 'resume_nuit', 'note_privee', 'planification'];
 export const sceneConnue = (s) => SCENES_CONNUES.includes(s);

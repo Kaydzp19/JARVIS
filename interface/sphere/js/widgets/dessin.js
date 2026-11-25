@@ -27,7 +27,7 @@ export function couper(c, s, largeur) {
 }
 
 /** Le cadre : fond, grille, coins lumineux, titre espacé et sous-titre. Renvoie la zone utile. */
-export function cadre(c, W, H, titre, sous) {
+export function cadre(c, W, H, titre, sous, basMin = 0) {
   c.clearRect(0, 0, W, H); c.shadowBlur = 0;
   c.fillStyle = 'rgba(3,10,24,0.80)'; rr(c, 2, 2, W - 4, H - 4, 10); c.fill();
   c.strokeStyle = 'rgba(110,200,255,0.28)'; c.lineWidth = 1; rr(c, 2.5, 2.5, W - 5, H - 5, 10); c.stroke();
@@ -57,7 +57,7 @@ export function cadre(c, W, H, titre, sous) {
     while (c.measureText(sous).width > reste && sf > 7.5) { sf -= 0.5; c.font = '400 ' + sf + 'px ' + MONO; }
     if (reste > 60) tx(c, couper(c, sous, reste), 38 + place, 27, sf, COULEURS.gris, 400, 'm', 'right');
   }
-  const bas = W < 560 ? 84 : 46;                      // en bas : contrôles et actions (sur 2 lignes si étroit)
+  const bas = Math.max(basMin, W < 560 ? 84 : 46);                      // en bas : contrôles et actions (sur 2 lignes si étroit)
   return { x: 18, y: 46, w: W - 36, h: H - 46 - bas };
 }
 

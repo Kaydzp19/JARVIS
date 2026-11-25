@@ -25,6 +25,10 @@ export function creerSourceReelle() {
     depenses: () => appel('/api/depenses'),
     aValider: () => appel('/api/a_valider'),
     decider: (projet, id, oui) => appel('/api/proposition', { projet, id, action: oui ? 'valider' : 'refuser' }),
+    /** ACTIONS HUMAINES sur les tâches : creer, modifier, supprimer, terminer. */
+    taches: (action, projet, { id, champs, fait } = {}) => appel('/api/taches', { action, projet, id, champs, fait }),
+    prochaines: (nombre = 3) => appel(`/api/prochaines?nombre=${nombre}`),
+    ouvrirPlanification: (projet, debut, vue) => appel('/api/planification/ouvrir', { projet, debut, vue }),
     journalDuJour: () => appel('/api/journal_du_jour'),
     note: (projet, id) => appel(`/api/note?projet=${encodeURIComponent(projet)}&id=${encodeURIComponent(id)}`),
     enregistrerNote: (projet, id, contenu) => appel('/api/note', { projet, id, contenu }),
@@ -91,6 +95,7 @@ export function routerReel(texte) {
     ['meteo', /\b(meteo|pluie|pleuvoir|soleil|temps qu.il fait|temperature dehors)\b/],
     ['resume_nuit', /\b(nuit|dormi|sommeil|reveil)\b/],
     ['graphique', /\b(depenses?|budget|couts?|coute|facture|plafond)\b/],
+    ['planification', /\b(planification|planning|planifier|agenda|taches?|demain|aujourd.hui|semaine|rendez.vous)\b/],
   ];
   for (const [nom, motif] of routes) if (motif.test(n)) return nom;
   return 'se_souvenir';

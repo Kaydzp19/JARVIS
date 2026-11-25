@@ -71,6 +71,11 @@
   </main>
 
   <section class="col droite-col" aria-label="Tableau de bord">
+    <aside class="panneau planif" aria-label="Planification" id="carte-planif">
+      <h2>Planification <b><button type="button" class="lien" id="planif-ouvrir">Ouvrir</button></b></h2>
+      <ul id="planif-liste"></ul>
+      <button type="button" class="ajouter" id="planif-ajouter">＋ Tâche</button>
+    </aside>
     <aside class="panneau" aria-label="Système">
       <h2>Système <b id="sys-nom">machine</b></h2>
       <div class="barres" id="sys-barres"></div>
@@ -102,6 +107,49 @@
     <div class="meta" id="editeur-meta"></div>
     <textarea id="editeur-texte" aria-label="Texte de la note"></textarea>
     <div class="bt"><button type="button" id="editeur-fermer">Fermer</button><button type="button" class="ok" id="editeur-enregistrer">Enregistrer</button></div>
+  </form>
+</dialog>
+
+<dialog id="tache" aria-labelledby="tache-entete">
+  <form id="tache-form" method="dialog" novalidate>
+    <h3 id="tache-entete">Nouvelle tâche</h3>
+    <p class="meta" id="tache-meta"></p>
+    <label class="champ">Titre <input id="tache-titre" maxlength="120" autocomplete="off" required></label>
+    <div class="ligne">
+      <label class="champ">Date <input type="date" id="tache-date"></label>
+      <label class="champ">Heure <input type="time" id="tache-heure" step="900"></label>
+      <label class="champ">Durée <select id="tache-duree">
+        <option value="15">15 min</option><option value="30">30 min</option><option value="45">45 min</option>
+        <option value="60">1 h</option><option value="90">1 h 30</option><option value="120">2 h</option><option value="180">3 h</option>
+      </select></label>
+    </div>
+    <div class="ligne">
+      <label class="champ">Projet <select id="tache-projet"></select></label>
+      <label class="champ">Priorité <select id="tache-priorite">
+        <option value="basse">basse</option><option value="normale">normale</option><option value="haute">haute</option>
+      </select></label>
+    </div>
+    <div class="ligne">
+      <label class="champ">Récurrence <select id="tache-recurrence">
+        <option value="aucune">une fois</option><option value="quotidienne">chaque jour</option>
+        <option value="jours_ouvres">jours ouvrés</option><option value="hebdomadaire">chaque semaine</option>
+        <option value="mensuelle">chaque mois</option>
+      </select></label>
+      <label class="champ">Rappel <select id="tache-rappel">
+        <option value="">aucun</option><option value="5">5 min avant</option><option value="15">15 min avant</option>
+        <option value="30">30 min avant</option><option value="60">1 h avant</option><option value="1440">la veille</option>
+      </select></label>
+    </div>
+    <label class="champ">Note liée <select id="tache-note"></select></label>
+    <p class="erreur" id="tache-erreur" role="alert"></p>
+    <div class="bt">
+      <button type="button" id="tache-supprimer">Supprimer</button>
+      <button type="button" id="tache-pasfait">Pas fait</button>
+      <button type="button" id="tache-fait">Fait</button>
+      <span class="espace"></span>
+      <button type="button" id="tache-annuler">Annuler</button>
+      <button type="submit" class="ok" id="tache-enregistrer">Enregistrer</button>
+    </div>
   </form>
 </dialog>
 

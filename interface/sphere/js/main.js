@@ -9,14 +9,15 @@ import { projetDemande, router as routerDemo } from './donnees_demo.js';
 import { creerSphere } from './sphere.js';
 import { creerConversation } from './conversation.js';
 import { creerParole } from './parole.js';
+import { creerFormulaireTache } from './formulaire_tache.js';
 import { creerTableau } from './tableau.js';
 import { creerEditeur } from './editeur.js';
 import { creerHologrammes } from './widgets/hologramme.js';
 
-const SUGGESTIONS_DEMO = ['Que sais-tu du projet A ?', 'Où en sont mes projets ?', 'État de mon Mac', 'Météo à Paris',
-  'Résumé de la nuit', 'Graphique de mes dépenses', 'Simule une nuit', 'Ouvre ma note sensible'];
-const SUGGESTIONS_REELLES = ['Que sais-tu de ce projet ?', 'Où en sont mes projets ?', 'État de ma machine', 'Météo',
-  'Résumé de la nuit', 'Graphique de mes dépenses'];
+const SUGGESTIONS_DEMO = ['Que sais-tu du projet A ?', 'Où en sont mes projets ?', 'Mes tâches de demain', 'État de mon Mac',
+  'Météo à Paris', 'Résumé de la nuit', 'Graphique de mes dépenses', 'Simule une nuit', 'Ouvre ma note sensible'];
+const SUGGESTIONS_REELLES = ['Que sais-tu de ce projet ?', 'Où en sont mes projets ?', 'Planification', 'Mes tâches de demain',
+  'État de ma machine', 'Météo', 'Résumé de la nuit', 'Graphique de mes dépenses'];
 const pause = (ms) => new Promise((r) => setTimeout(r, ms));
 
 function horloge() {
@@ -124,9 +125,42 @@ async function demarrer() {
       await synchroniserAlertes();
       tableau.journal();
     },
+    surPlanif: (t) => ouvrirPlanification(t.projet),
+    surRappel: (t) => {
+      conv.outil(`rappel · ${t.titre}`, `${t.heure} · ${t.projet}${t.note_titre ? ' · note : ' + t.note_titre : ''}`);
+      annoncer(`Rappel : ${t.titre} à ${t.heure}.`);
+      if (t.note_id && sphere) sphere.allumer(t.projet, t.note_id);
+    },
   });
 
   editeur = creerEditeur({ source, surMessage: message });
+
+  // ---- Planification : la fiche de tâche (actions humaines), l'hologramme ----
+  const notesParProjet = Object.fromEntries(donnees.projets.map((p) => [p.nom, p.neurones.map((n) => ({ id: n.id, titre: n.titre }))]));
+  async function rafraichirPlanification() {
+    const ev = holo && holo.courant;
+    if (ev && ev.scene === 'planification') {
+      try { const r = await source.action(ev.id, 'rafraichir', {}); if (r.type === 'mise_a_jour') holo.appliquer(r.affichage); } catch (e) { /* rien */ }
+    }
+    tableau.planif(); tableau.journal();
+  }
+  const formulaire = creerFormulaireTache({
+    source, projets: donnees.projets.map((p) => p.nom), notesDe: (p) => notesParProjet[p] || [], annoncer,
+    async apres({ action, projet, resultat }) {
+      const quoi = { creer: 'créée', modifier: 'modifiée', supprimer: 'supprimée', terminer: resultat && resultat.statut }[action];
+      conv.outil(`taches.${action}(projet="${projet}")`, `action de Kayd : tâche ${quoi}${resultat && resultat.prochaine ? ', prochaine le ' + resultat.prochaine : ''} · journalisée`);
+      await rafraichirPlanification();
+    },
+  });
+  async function ouvrirPlanification(projet) {
+    if (!holo) return;
+    try { afficher(await source.ouvrirPlanification(projet || choix.value || '*')); } catch (e) { conv.outil('planification · erreur', e.message); }
+  }
+  $('planif-ouvrir').addEventListener('click', () => ouvrirPlanification(choix.value));
+  $('planif-ajouter').addEventListener('click', () => {
+    const projet = choix.value === '*' ? (donnees.projets[0] || {}).nom : choix.value;
+    if (projet) formulaire.ouvrir({ projet });
+  });
 
   if (sphere) {
     holo = creerHologrammes({
@@ -143,6 +177,24 @@ async function demarrer() {
         } catch (e) { conv.outil(`affichage.action(widget=${ev.id}, action="${action}")`, { texte: 'refusée : ' + e.message, prive: true }); }
       },
       surNote(n) { sphere.allumer(n.projet, n.id); },
+      surTache(ev, t) {
+        if (t.note_id) sphere.allumer(t.projet, t.note_id);         // la note liée s'allume
+        if (ev.donnees.lecture_seule) {
+          conv.outil(`planification · ${t.titre}`, `vue « tous les projets » en lecture seule : choisis « ${t.projet} » pour la modifier`);
+          return;
+        }
+        formulaire.ouvrir({ projet: t.projet, tache: t });
+      },
+      async surDeposer(ev, z, { date, heure }) {
+        try {
+          await source.taches('modifier', z.tache.projet, { id: z.tache.id, champs: { date, heure } });
+          conv.outil(`taches.modifier(projet="${z.tache.projet}")`, `action de Kayd : « ${z.tache.titre} » déplacée au ${date} à ${heure} · journalisée`);
+        } catch (e) { conv.outil('planification · déplacement refusé', { texte: e.message, prive: true }); }
+        await rafraichirPlanification();
+      },
+      surBouton(ev, id) {
+        if (id === 'ajouter') formulaire.ouvrir({ projet: ev.donnees.projet, date: ev.donnees.vue === 'jour' ? ev.donnees.debut : ev.donnees.aujourd_hui });
+      },
       surOuvrirNote(n) {
         if (n.parKayd) { editeur.ouvrir(n.projet, n.id); return; }
         if (n.sensible) { conv.outil('ouvrir_note · refusé', { texte: 'note sensible : elle reste fermée ici', prive: true }); return; }
@@ -232,6 +284,7 @@ function installerCatalogue({ demander, holo }) {
   const cas = [
     ['Notes retenues', 'vague complète en 4 temps, projet A', () => demander('Que sais-tu du projet A ?')],
     ['Tous les projets', 'lecture seule, 4 notes par projet', () => demander('Où en sont mes projets ?')],
+    ['Planification', 'semaine en frise, tâches à glisser, agenda en violet', () => demander('Planification de la semaine')],
     ['Graphique 3D', 'dépenses IA sur 6 mois, plafond 10 €, période modifiable', () => demander('Graphique de mes dépenses')],
     ['Machine', 'jauges, processus, courbe 2 min, puce 3D', () => demander('État de mon Mac')],
     ['Météo', 'soleil et nuage 3D, 24 h, 7 jours', () => demander('Météo à Paris')],
