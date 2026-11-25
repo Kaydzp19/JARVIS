@@ -117,6 +117,26 @@ def a_valider(racine=None):
             for prop in cc.lister_propositions(p, "en attente", racine)]
 
 
+def action_tache(d, racine=None):
+    """
+    ACTIONS HUMAINES de Kayd sur ses tâches (enregistrées directement, journalisées) :
+    creer, modifier (aussi déplacer), supprimer, terminer. Jamais dans la vue « tous ».
+    """
+    from noyau import planification
+    action, projet = d.get("action"), d.get("projet")
+    if action == "creer":
+        return {"ok": True, "id": planification.creer(projet, d.get("champs") or {}, racine=racine)}
+    if action == "modifier":
+        planification.modifier(projet, int(d["id"]), d.get("champs") or {}, racine=racine)
+        return {"ok": True}
+    if action == "supprimer":
+        planification.supprimer(projet, int(d["id"]), racine=racine)
+        return {"ok": True}
+    if action == "terminer":
+        return dict(planification.terminer(projet, int(d["id"]), bool(d.get("fait")), racine=racine), ok=True)
+    raise ValueError("Action inconnue (creer, modifier, supprimer, terminer).")
+
+
 def lire_note(projet, note_id, racine=None):
     n = next((n for n in projets.lister_notes(projet, racine) if n["id"] == note_id), None)
     if n is None:
@@ -226,6 +246,10 @@ class Gestionnaire(BaseHTTPRequestHandler):
             if url.path == "/api/journal_du_jour":
                 from interface import fournisseurs
                 return self._envoyer(200, fournisseurs.journal_du_jour(self.racine))
+            if url.path == "/api/prochaines":
+                from noyau import planification
+                return self._envoyer(200, planification.prochaines(q.get("projet", "*"),
+                                                                   int(q.get("nombre", 3)), self.racine))
             if url.path == "/api/affichage":
                 from noyau import affichage
                 return self._envoyer(200, affichage.lister(int(q.get("apres", 0)),
@@ -267,6 +291,12 @@ class Gestionnaire(BaseHTTPRequestHandler):
                 return self._envoyer(200, {"ok": True})
             if url.path == "/api/nuit":
                 return self._envoyer(200, simuler_nuit(d["projet"], self.racine))
+            if url.path == "/api/taches":
+                return self._envoyer(200, action_tache(d, self.racine))
+            if url.path == "/api/planification/ouvrir":
+                from interface import conversation
+                return self._envoyer(200, conversation.ouvrir_planification(
+                    d.get("projet") or "*", d.get("debut"), d.get("vue") or "semaine", self.racine))
             if url.path == "/api/demander":
                 from interface import conversation
                 return self._envoyer(200, conversation.repondre(d.get("texte", ""), d.get("projet"),

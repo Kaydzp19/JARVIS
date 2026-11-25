@@ -124,5 +124,6 @@ class TestModules(TestTemporaire):
             texte = fichier.read_text(encoding="utf-8")
             # Une vraie dépendance : le nom du module comme chaîne exacte, un chemin ou un import.
             for signe in ('"notifications"', "'notifications'", "modules/notifications",
-                          "modules.notifications", "import notifications"):
+                          "modules.notifications", "import notifications",
+                          '"agenda"', "'agenda'", "modules/agenda", "modules.agenda", "import agenda"):
                 self.assertNotIn(signe, texte, f"{fichier.name} dépend d'un module")

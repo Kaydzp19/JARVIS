@@ -232,3 +232,58 @@ class TestFournisseurs(TestTemporaire):
         self.assertEqual(conversation.router("Va-t-il pleuvoir ?"), "meteo")
         self.assertEqual(conversation.router("ouvre la note Budget"), "ouvrir_note")
         self.assertEqual(conversation.router("que sais-tu du lancement ?"), "se_souvenir")
+
+
+class TestPlanificationApi(Base):
+
+    def setUp(self):
+        super().setUp()
+        demo.creer_demo(racine=self.racine, bavard=False)
+
+    def test_taches_humaines_creer_modifier_terminer_supprimer(self):
+        from noyau import planification
+        r = self.json("/api/taches", {"action": "creer", "projet": "Projet A",
+                                      "champs": {"titre": "Essai", "date": "2030-01-07", "heure": "10:00"}})
+        tid = r["id"]
+        self.json("/api/taches", {"action": "modifier", "projet": "Projet A", "id": tid,
+                                  "champs": {"heure": "11:30", "duree": 50}})
+        self.assertEqual(planification.lire("Projet A", tid, self.racine)["heure"], "11:30")
+        self.assertEqual(self.json("/api/taches", {"action": "terminer", "projet": "Projet A", "id": tid,
+                                                   "fait": True})["statut"], "fait")
+        self.json("/api/taches", {"action": "supprimer", "projet": "Projet A", "id": tid})
+        journal = " ".join(l["evenement"] for l in projets.lire_journal("Projet A", self.racine))
+        for mot in ("créée : Essai", "modifiée", "fait", "supprimée : Essai"):
+            self.assertIn(mot, journal)
+        # Vue transversale : lecture seule.
+        code = self.appel("/api/taches", {"action": "creer", "projet": "*", "champs": {"titre": "x"}})[0]
+        self.assertEqual(code, 400)
+
+    def test_hologramme_planification_et_navigation(self):
+        ev = self.json("/api/planification/ouvrir", {"projet": "Projet A"})
+        self.assertEqual(ev["scene"], "planification")
+        self.assertEqual(affichage.valider(ev), [])
+        d = ev["donnees"]
+        self.assertEqual(d["vue"], "semaine")
+        self.assertTrue(d["taches"])
+        self.assertTrue(d["externes"]["disponible"])                # agenda en mode DÉMO
+        self.assertFalse(d["externes"]["modifiable"])
+        suivant = self.json("/api/affichage/action", {"widget": ev["id"], "action": "suivant", "params": {}})
+        self.assertEqual(suivant["type"], "mise_a_jour")
+        self.assertGreater(suivant["affichage"]["donnees"]["debut"], d["debut"])
+        tous = self.json("/api/affichage/action", {"widget": ev["id"], "action": "filtre",
+                                                   "params": {"projet": "tous"}})
+        self.assertTrue(tous["affichage"]["donnees"]["lecture_seule"])
+        jour = self.json("/api/affichage/action", {"widget": ev["id"], "action": "onglet",
+                                                   "params": {"vue": "jour"}})
+        self.assertEqual(jour["affichage"]["donnees"]["jours"], 1)
+
+    def test_jarvis_ouvre_la_planification(self):
+        r = self.json("/api/demander", {"texte": "Mes tâches de demain", "projet": "Projet A"})
+        self.assertEqual(r["route"], "planification")
+        self.assertEqual(r["affichage"]["donnees"]["vue"], "jour")
+        self.assertTrue(r["outil"].startswith('planification(projet="Projet A", vue="jour"'))
+
+    def test_prochaines_taches(self):
+        p = self.json("/api/prochaines")
+        self.assertEqual(len(p), 3)
+        self.assertEqual(p[0]["titre"], "Appeler deux commerçants")

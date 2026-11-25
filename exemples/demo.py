@@ -120,6 +120,22 @@ def creer_demo(racine=None, aujourd_hui=None, remplacer=False, bavard=True):
     tour1 = orchestrateur.tour(aujourd_hui, racine=racine)   # agents des 4 voies
     tour2 = orchestrateur.tour(aujourd_hui, racine=racine)   # vérification des nouvelles propositions
 
+    # Planification : quelques tâches datées, et l'agenda Apple en mode DÉMO (faux rendez-vous).
+    from noyau import modules, planification
+    j = lambda n: (aujourd_hui + timedelta(days=n)).isoformat()
+    for champs in ({"titre": "Appeler deux commerçants", "date": j(0), "heure": "10:00", "duree": 30,
+                    "priorite": "haute", "note_id": clients},
+                   {"titre": "Point hebdo du projet", "date": j(1), "heure": "09:00", "duree": 45,
+                    "recurrence": "hebdomadaire", "rappel": 15},
+                   {"titre": "Mettre à jour les prix", "date": j(2), "heure": "14:30", "duree": 60,
+                    "note_id": prix},
+                   {"titre": "Relire l'offre", "date": j(3), "heure": "16:00", "duree": 30, "note_id": offre}):
+        planification.creer("Projet A", champs, racine=racine, acteur="demo")
+    try:
+        modules.activer("agenda", "DEMO", racine=racine)
+    except KeyError:
+        pass  # module retiré : la planification marche sans lui
+
     if bavard:
         print("1. Mémoire : « Projet A » (normal) et « Projet B » (sensible), notes liées et validées.")
         a = nuit["projets"].get("Projet A", {})

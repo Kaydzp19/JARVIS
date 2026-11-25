@@ -236,7 +236,7 @@ def se_souvenir_trace(projet, requete="", limite=6, racine=None, aujourd_hui=Non
 # ==================================================================
 
 def proposer(projet, type, contenu, liens=None, titre=None, date=None, racine=None,
-             acteur="agent", raison=None, note_cible=None):
+             acteur="agent", raison=None, note_cible=None, details=None):
     """
     Crée une proposition « en attente ». Rien n'est écrit dans les notes :
     le contenu est rangé dans la table propositions ET dans une copie
@@ -268,9 +268,10 @@ def proposer(projet, type, contenu, liens=None, titre=None, date=None, racine=No
         with conn:
             cur = conn.execute(
                 "INSERT INTO propositions (type, titre, contenu, liens, statut, creee_le, "
-                "acteur, raison, note_cible) VALUES (?, ?, ?, ?, 'en attente', ?, ?, ?, ?)",
+                "acteur, raison, note_cible, details) VALUES (?, ?, ?, ?, 'en attente', ?, ?, ?, ?, ?)",
                 (type, titre, contenu, json.dumps(liens, ensure_ascii=False),
-                 _date_texte(date), acteur, raison, note_cible))
+                 _date_texte(date), acteur, raison, note_cible,
+                 json.dumps(details, ensure_ascii=False) if details else None))
             pid = cur.lastrowid
             _journal_brut(conn, date, acteur, f"proposition {pid} créée ({type}) : {titre}",
                           raison)
@@ -335,6 +336,7 @@ def lire_proposition(projet, pid, racine=None):
     d = dict(r)
     d["liens"] = json.loads(d["liens"] or "[]")
     d["verification"] = json.loads(d["verification"]) if d["verification"] else None
+    d["details"] = json.loads(d["details"]) if d.get("details") else None
     return d
 
 
@@ -393,11 +395,27 @@ def valider_proposition(projet, pid, date=None, racine=None, acteur="kayd", rais
         modifier_note_humaine(projet, p["note_cible"], p["contenu"], date=date, racine=racine,
                               acteur=acteur)
         resultat = p["note_cible"]
+    elif p["details"] and p["details"].get("module"):
+        # Action préparée par un module (ex. écrire dans un service extérieur) : le noyau
+        # n'écrit rien lui-même ; il prévient le module après la clôture (plus bas).
+        resultat = None
+    elif p["type"] == "tache" and p["details"] and p["details"].get("planification"):
+        # Tâche planifiée proposée par JARVIS (date, heure, durée…) : créée telle quelle.
+        from noyau import planification
+        resultat = planification.creer(projet, p["details"]["planification"], racine=racine,
+                                       acteur=acteur, raison=f"proposition {pid} validée")
     else:  # tache
         note_liee = _id_note_par_titre(projet, p["liens"][0], racine) if p["liens"] else None
         resultat = projets.creer_tache(projet, p["titre"], note_id=note_liee, racine=racine,
                                        acteur=acteur, raison=f"proposition {pid} validée")
     _cloturer(projet, pid, "validée", resultat, date, racine, acteur, raison)
+    if p["details"] and p["details"].get("module"):
+        from noyau import modules
+        for r in modules.emettre("proposition_validee", {"projet": projet, "id": pid,
+                                                          "details": p["details"]}, racine=racine):
+            journal(projet, f"proposition {pid} transmise au module {r['module']}",
+                    str(r.get("resultat") if r["ok"] else r.get("erreur")), racine=racine,
+                    acteur="jarvis")
     return resultat
 
 

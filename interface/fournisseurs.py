@@ -290,3 +290,26 @@ def journal_du_jour(racine=None, aujourd_hui=None, limite=30):
                            "prive": sensible})
     lignes.sort(key=lambda l: l["date"], reverse=True)
     return lignes[:limite]
+
+
+# ------------------------------------------------------------------
+# Calendrier extérieur (fourni par un module, ex. « agenda »), en lecture seule
+# ------------------------------------------------------------------
+
+def calendrier(debut, jours=7, racine=None):
+    """Événements d'un calendrier extérieur, demandés aux modules actifs. Jamais d'erreur."""
+    from datetime import timedelta
+    from noyau import modules
+    from noyau.outils import jour
+    d = jour(debut)
+    resultats = modules.emettre("agenda_lire", {"debut": d.isoformat(),
+                                                "fin": (d + timedelta(days=int(jours))).isoformat()},
+                                racine=racine)
+    for r in resultats:
+        if r["ok"] and isinstance(r["resultat"], dict):
+            return dict(r["resultat"], module=r["module"])
+    if resultats:
+        return {"disponible": False, "evenements": [],
+                "raison": "Agenda illisible pour l'instant : la planification continue sans lui."}
+    return {"disponible": False, "evenements": [],
+            "raison": "Agenda Apple non branché : python3 jarvis.py modules --activer agenda --mode REEL"}

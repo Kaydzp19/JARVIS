@@ -69,8 +69,16 @@ CREATE TABLE IF NOT EXISTS propositions (
 COLONNES_AJOUTEES = {
     # table : [(colonne, définition)]
     "notes": [("validee", "INTEGER NOT NULL DEFAULT 0 CHECK (validee IN (0, 1))")],
-    "taches": [("contrat", "TEXT")],
-    "propositions": [("note_cible", "INTEGER")],  # note visée par une modification
+    "taches": [("contrat", "TEXT"),
+               # Planification (marche 7) : heure, durée, priorité, récurrence, rappel.
+               ("heure", "TEXT"), ("duree", "INTEGER"),
+               ("priorite", "TEXT NOT NULL DEFAULT 'normale'"),
+               ("recurrence", "TEXT NOT NULL DEFAULT 'aucune'"),
+               ("ancre", "TEXT"),            # première date d'une tâche récurrente
+               ("rappel", "INTEGER"),        # minutes avant le début
+               ("modifiee_le", "TEXT")],
+    "propositions": [("note_cible", "INTEGER"),  # note visée par une modification
+                     ("details", "TEXT")],      # précisions (JSON), ex. date et heure d'une tâche
 }
 
 

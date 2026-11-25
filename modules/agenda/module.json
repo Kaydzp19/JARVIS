@@ -1,0 +1,10 @@
+{
+  "nom": "agenda",
+  "description": "Agenda Apple, lu sur ce Mac (lecture seule). L'écriture est préparée mais n'est jamais exécutée sans la validation de Kayd.",
+  "version": "0.1",
+  "lit": ["agenda_apple"],
+  "ecrit": ["propositions", "journal"],
+  "demande": [],
+  "reglages": ["agenda_masquer_titres", "agenda_calendriers", "agenda_ecriture"],
+  "evenements": ["agenda_lire", "agenda_preparer_ecriture", "proposition_validee"]
+}

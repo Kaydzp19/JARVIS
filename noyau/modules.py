@@ -119,6 +119,22 @@ class Contexte:
     def aujourd_hui(self):
         return jour().isoformat()
 
+    def reglage(self, cle, defaut=""):
+        """Lire un réglage (reglages.local ou environnement)."""
+        return reglages.lire(cle, defaut) or defaut
+
+    def proposer(self, projet, titre, contenu, raison=None, details=None):
+        """
+        Proposer une action à Kayd (« À valider »), si la fiche du module déclare écrire des
+        propositions. Rien n'est exécuté : à la validation, le noyau prévient le module
+        (événement « proposition_validee »).
+        """
+        if "propositions" not in self._ecrit:
+            raise PermissionError(f"Le module {self.nom} n'a pas déclaré écrire des propositions.")
+        return corps_calleux.proposer(projet, "tache", contenu, titre=titre, racine=self._racine,
+                                      acteur=f"module:{self.nom}", raison=raison,
+                                      details=dict(details or {}, module=self.nom))
+
 
 def _charger_code(conf):
     spec = importlib.util.spec_from_file_location(f"jarvis_module_{conf['nom']}",

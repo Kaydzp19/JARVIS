@@ -20,7 +20,7 @@ from datetime import date, timedelta
 
 from noyau import affichage
 from noyau import corps_calleux as cc
-from noyau import projets, systeme
+from noyau import planification, projets, systeme
 from noyau.outils import normaliser
 
 from interface import fournisseurs
@@ -35,6 +35,8 @@ ROUTES = [
     ("meteo", re.compile(r"\b(meteo|pluie|pleuvoir|soleil|temps qu.il fait|temperature dehors)\b")),
     ("resume_nuit", re.compile(r"\b(nuit|dormi|sommeil|reveil)\b")),
     ("graphique", re.compile(r"\b(depenses?|budget|couts?|coute|facture|plafond)\b")),
+    ("planification", re.compile(r"\b(planification|planning|planifier|agenda|taches?|"
+                                 r"demain|aujourd.hui|semaine|rendez.vous)\b")),
 ]
 MOTIF_OUVRIR = re.compile(r"^(?:ouvre|ouvrir|montre|affiche)(?:[- ]moi)? la note (.+?)\s*[?.!]*$", re.I)
 
@@ -92,9 +94,44 @@ def donnees_depenses(periode="6 mois", racine=None):
             "aujourd_hui": d["aujourd_hui"], "session": d["session"]}
 
 
+def donnees_planification(projet, debut=None, vue="semaine", racine=None):
+    d = planification.donnees(projet, debut, vue, racine)
+    d["externes"] = fournisseurs.calendrier(d["debut"], d["jours"], racine)
+    return d
+
+
+def ouvrir_planification(projet, debut=None, vue="semaine", racine=None):
+    """L'hologramme « planification » (carte de droite, ou demande à JARVIS)."""
+    return affichage.afficher(
+        "planification", "Planification", donnees_planification(projet, debut, vue, racine),
+        projet=projet, fermeture=0, racine=racine,
+        controles={"onglets": ["liste", "jour", "semaine"],
+                   "filtres": cc.lister_projets(racine) + ["tous"]},
+        actions=[{"id": "precedent", "libelle": "◀"}, {"id": "aujourdhui", "libelle": "Aujourd’hui"},
+                 {"id": "suivant", "libelle": "▶"}])
+
+
 def rafraichir(ev, action, params, racine=None):
     """Nouvelles données pour une action de lecture venue d'un widget (ou None)."""
     scene, d = ev["scene"], ev["donnees"]
+    if scene == "planification":
+        from datetime import date, timedelta
+        vue = params.get("vue") or d.get("vue") or "semaine"
+        if vue not in ("liste", "jour", "semaine"):
+            raise ValueError("Vue inconnue.")
+        projet = params.get("projet") or d.get("projet") or ev.get("projet")
+        projet = TOUS if projet == "tous" else projet
+        if projet != TOUS and projet not in cc.lister_projets(racine):
+            raise ValueError("Projet inconnu.")
+        debut = date.fromisoformat(params.get("debut") or d["debut"])
+        pas = 1 if vue == "jour" else 7
+        if action == "precedent":
+            debut -= timedelta(days=pas)
+        elif action == "suivant":
+            debut += timedelta(days=pas)
+        elif action == "aujourdhui":
+            debut = date.today()
+        return donnees_planification(projet, debut, vue, racine)
     if scene == "machine":
         return fournisseurs.machine()
     if scene == "meteo":
@@ -197,8 +234,29 @@ def _ouvrir_note(texte, projet, racine):
                 reponse=f"J'ouvre « {note['titre']} » dans l'éditeur local.")
 
 
-def _hologramme(route, projet, racine):
+def _hologramme(route, projet, racine, texte=""):
     p = _projet_par_defaut(projet, racine)
+    if route == "planification":
+        from datetime import date, timedelta
+        n = normaliser(texte)
+        debut, vue = date.today(), "semaine"
+        if "demain" in n:
+            debut, vue = date.today() + timedelta(days=1), "jour"
+        elif re.search(r"aujourd.hui", n):
+            vue = "jour"
+        cible = projet if projet == TOUS else p
+        if cible is None:
+            return None
+        ev = ouvrir_planification(cible, debut, vue, racine)
+        d = ev["donnees"]
+        quand = "demain" if "demain" in n else ("aujourd'hui" if vue == "jour" else "cette semaine")
+        n_taches = sum(1 for t in d["taches"] if t["statut"] != "fait")
+        reponse = (f"{n_taches} tâche(s) à faire {quand}"
+                   + (f" dans « {cible} »." if cible != TOUS else " dans tous tes projets (lecture seule).")
+                   + ("" if d["externes"]["disponible"] else " " + d["externes"]["raison"]))
+        return {"route": route, "outil": f'planification(projet="{_guillemets(cible)}", vue="{vue}", '
+                                         f'debut="{d["debut"]}")',
+                "routeur": ROUTEUR_SANS_IA, "reponse": reponse, "affichage": ev, "recherche": None}
     if route == "machine":
         ev = affichage.afficher("machine", "Machine", fournisseurs.machine(), racine=racine,
                                 actions=[{"id": "rafraichir", "libelle": "Actualiser"}])
@@ -246,7 +304,7 @@ def repondre(texte, projet, racine=None):
     if route == "ouvrir_note":
         return _ouvrir_note(texte, projet, racine)
     if route != "se_souvenir":
-        r = _hologramme(route, projet, racine)
+        r = _hologramme(route, projet, racine, texte)
         if r is not None:
             return r
     if not cc.lister_projets(racine):
