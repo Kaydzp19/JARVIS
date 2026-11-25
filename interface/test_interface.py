@@ -49,7 +49,8 @@ class TestCockpit(TestTemporaire):
     def test_acces_protege(self):
         self.assertEqual(self.appel("/api/etat", jeton="mauvais")[0], 401)
         self.assertEqual(self.appel("/", jeton="")[0], 401)
-        code, page = self.appel("/")
+        self.assertEqual(self.appel("/cockpit", jeton="")[0], 401)
+        code, page = self.appel("/cockpit")      # l'ancien cockpit, toujours disponible
         self.assertEqual(code, 200)
         self.assertIn("J.A.R.V.I.S", page)
         # Contrat de design : palette, polices, écrans et libellés.

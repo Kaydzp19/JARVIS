@@ -1,7 +1,10 @@
 """
-Cockpit web de JARVIS (marche 7) : un petit site qui tourne sur ta machine.
+Interface web de JARVIS (marche 7) : un petit site qui tourne sur ta machine.
 
     python3 jarvis.py cockpit
+
+- « / »         : l'interface « sphère » (second cerveau, conversation, hologrammes) ;
+- « /cockpit »  : l'ancien cockpit à 4 écrans (toujours disponible).
 
 - Il n'écoute que l'adresse 127.0.0.1 : seul ton ordinateur peut l'ouvrir.
 - Accès protégé par un jeton (une sorte de mot de passe) : soit
@@ -21,7 +24,7 @@ import webbrowser
 from http import cookies
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, urlencode, urlparse
 
 RACINE_DEPOT = Path(__file__).resolve().parent.parent
 if str(RACINE_DEPOT) not in sys.path:
@@ -31,8 +34,16 @@ from noyau import agent as agents_mod  # noqa: E402
 from noyau import corps_calleux as cc  # noqa: E402
 from noyau import modules, orchestrateur, projets, reglages, routeur_ia, synapses  # noqa: E402
 
-PAGE = Path(__file__).resolve().parent / "cockpit.html"
+DOSSIER_INTERFACE = Path(__file__).resolve().parent
+PAGE_COCKPIT = DOSSIER_INTERFACE / "cockpit.html"
+PAGE = PAGE_COCKPIT                      # (nom gardé pour compatibilité)
+DOSSIER_SPHERE = DOSSIER_INTERFACE / "sphere"
+PAGE_SPHERE = DOSSIER_SPHERE / "index.html"
 NOM_COOKIE = "jarvis_jeton"
+TYPES_FICHIERS = {".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8",
+                  ".mjs": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8",
+                  ".json": "application/json; charset=utf-8", ".svg": "image/svg+xml",
+                  ".png": "image/png"}
 
 
 # ------------------------------------------------------------------
@@ -186,6 +197,60 @@ def decider_reve(projet, rid, decision, raison=None, racine=None):
                                                                    racine=racine)
 
 
+def sphere(racine=None):
+    """
+    Toute la mémoire pour la sphère : un neurone par note, une synapse par lien pondéré,
+    une région par projet. Uniquement titres, identifiants et poids, jamais le contenu.
+    Les propositions en attente (jaune) et les synapses de rêve (5 au plus par projet)
+    accompagnent chaque projet.
+    """
+    from noyau import reve
+    resultat, tous_demo = [], True
+    for p in cc.lister_projets(racine):
+        notes, liens = cc.titres_et_liens(p, racine)
+        sensibles = {n["id"] for n in projets.lister_notes(p, racine) if n["sensible"]}
+        degre = {}
+        for l in liens:
+            for x in (l["source"], l["cible"]):
+                degre[x] = degre.get(x, 0) + 1
+        titres = {n["titre"]: n["id"] for n in notes}
+        propositions = []
+        for prop in cc.lister_propositions(p, "en attente", racine):
+            cibles = {titres[t] for t in prop["liens"] if t in titres}
+            if prop.get("note_cible"):
+                cibles.add(prop["note_cible"])
+            propositions.append({"id": prop["id"], "titre": prop["titre"], "type": prop["type"],
+                                 "acteur": prop["acteur"], "notes": sorted(cibles)})
+        reves = []
+        for r in reve.lister(p, racine=racine)[-5:]:
+            src = [int(x) for x in r["sources"]]
+            for a, b in zip(src, src[1:]):
+                reves.append({"a": a, "b": b, "idee": r["idee"][:120], "statut": r["statut"]})
+        demo = cc.projet_demo(p, racine)
+        tous_demo = tous_demo and demo
+        resultat.append({
+            "nom": p, "sensible": cc.projet_sensible(p, racine), "demo": demo,
+            "neurones": [{"id": n["id"], "titre": n["titre"], "validee": n["validee"],
+                          "sensible": n["id"] in sensibles, "liens": degre.get(n["id"], 0)}
+                         for n in notes],
+            "synapses": [{"a": l["source"], "b": l["cible"], "poids": round(l["poids"], 3)}
+                         for l in liens],
+            "reves": reves[:5], "propositions": propositions,
+        })
+    return {"projets": resultat, "demo": bool(resultat) and tous_demo,
+            "mode_ia": routeur_ia.mode_ia(),
+            "compteurs": {"neurones": sum(len(x["neurones"]) for x in resultat),
+                          "synapses": sum(len(x["synapses"]) for x in resultat)}}
+
+
+def a_valider(racine=None):
+    """Les propositions en attente de tous les projets (le widget « À valider »)."""
+    return [{"projet": p, "id": prop["id"], "titre": prop["titre"], "type": prop["type"],
+             "acteur": prop["acteur"], "raison": prop["raison"], "creee_le": prop["creee_le"]}
+            for p in cc.lister_projets(racine)
+            for prop in cc.lister_propositions(p, "en attente", racine)]
+
+
 def graphe(racine=None):
     """Uniquement titres et liens : jamais le contenu des notes."""
     resultat = []
@@ -264,6 +329,15 @@ class Gestionnaire(BaseHTTPRequestHandler):
             raise ValueError("Requête trop grosse.")
         return json.loads(self.rfile.read(taille) or b"{}")
 
+    def _fichier_statique(self, relatif):
+        """Sert un fichier de interface/sphere/, sans jamais sortir de ce dossier."""
+        base = DOSSIER_SPHERE.resolve()
+        chemin = (base / relatif).resolve()
+        if base not in chemin.parents or not chemin.is_file() \
+                or chemin.suffix not in TYPES_FICHIERS or "tests" in chemin.relative_to(base).parts:
+            return self._envoyer(404, {"erreur": "Introuvable"})
+        self._envoyer(200, chemin.read_bytes(), TYPES_FICHIERS[chemin.suffix])
+
     # --- routes ---
 
     def do_GET(self):
@@ -272,16 +346,40 @@ class Gestionnaire(BaseHTTPRequestHandler):
             return self._refuser()
         q = {k: v[0] for k, v in parse_qs(url.query).items()}
         try:
+            est_page = url.path in ("/", "/cockpit") or url.path.endswith(".html")
+            if est_page and "jeton" in q:
+                # On range le jeton dans un cookie, puis on nettoie l'adresse (sans le jeton).
+                autres = urlencode({k: v for k, v in q.items() if k != "jeton"})
+                c = f"{NOM_COOKIE}={self.jeton}; HttpOnly; SameSite=Strict; Path=/"
+                self.send_response(303)
+                self.send_header("Set-Cookie", c)
+                self.send_header("Location", url.path + ("?" + autres if autres else ""))
+                self.send_header("Content-Length", "0")
+                self.end_headers()
+                return
             if url.path == "/":
-                if "jeton" in q:  # on range le jeton dans un cookie puis on nettoie l'adresse
-                    c = (f"{NOM_COOKIE}={self.jeton}; HttpOnly; SameSite=Strict; Path=/")
-                    self.send_response(303)
-                    self.send_header("Set-Cookie", c)
-                    self.send_header("Location", "/")
-                    self.send_header("Content-Length", "0")
-                    self.end_headers()
-                    return
-                return self._envoyer(200, PAGE.read_bytes(), "text/html; charset=utf-8")
+                return self._envoyer(200, PAGE_SPHERE.read_bytes(), "text/html; charset=utf-8")
+            if url.path == "/cockpit":
+                return self._envoyer(200, PAGE_COCKPIT.read_bytes(), "text/html; charset=utf-8")
+            if url.path.startswith("/sphere/"):
+                return self._fichier_statique(url.path[len("/sphere/"):])
+            if url.path == "/api/sphere":
+                return self._envoyer(200, sphere(self.racine))
+            if url.path == "/api/a_valider":
+                return self._envoyer(200, a_valider(self.racine))
+            if url.path == "/api/systeme":
+                from interface import fournisseurs
+                return self._envoyer(200, fournisseurs.machine())
+            if url.path == "/api/depenses":
+                from interface import fournisseurs
+                return self._envoyer(200, fournisseurs.depenses(self.racine))
+            if url.path == "/api/journal_du_jour":
+                from interface import fournisseurs
+                return self._envoyer(200, fournisseurs.journal_du_jour(self.racine))
+            if url.path == "/api/affichage":
+                from noyau import affichage
+                return self._envoyer(200, affichage.lister(int(q.get("apres", 0)),
+                                                           racine=self.racine))
             if url.path == "/api/etat":
                 return self._envoyer(200, etat(self.racine, q.get("projet")))
             if url.path == "/api/reve":
@@ -348,6 +446,18 @@ class Gestionnaire(BaseHTTPRequestHandler):
                 return self._envoyer(200, {"ok": True, "statut": r["statut"]})
             if url.path == "/api/nuit":
                 return self._envoyer(200, simuler_nuit(d["projet"], self.racine))
+            if url.path == "/api/demander":
+                from interface import conversation
+                return self._envoyer(200, conversation.repondre(d.get("texte", ""), d.get("projet"),
+                                                                self.racine))
+            if url.path == "/api/affichage/action":
+                from interface import conversation
+                from noyau import affichage
+                res = affichage.recevoir_action(
+                    int(d["widget"]), d["action"], d.get("params") or {},
+                    lambda ev, a, p: conversation.rafraichir(ev, a, p, self.racine),
+                    racine=self.racine)
+                return self._envoyer(200, res)
             if url.path == "/api/tour":
                 return self._envoyer(200, orchestrateur.tour(racine=r))
             self._envoyer(404, {"erreur": "Introuvable"})
@@ -359,6 +469,8 @@ def creer_serveur(port=8765, jeton=None, racine=None, hote="127.0.0.1"):
     jeton = jeton or reglages.lire("COCKPIT_JETON") or secrets.token_urlsafe(16)
     gestionnaire = type("GestionnaireJarvis", (Gestionnaire,), {"jeton": jeton, "racine": racine})
     serveur = ThreadingHTTPServer((hote, port), gestionnaire)
+    from interface import fournisseurs
+    fournisseurs.demarrer_session(racine)
     serveur.jeton = jeton
     return serveur
 
@@ -366,7 +478,7 @@ def creer_serveur(port=8765, jeton=None, racine=None, hote="127.0.0.1"):
 def lancer(port=8765, ouvrir=True):
     serveur = creer_serveur(port)
     adresse = f"http://127.0.0.1:{serveur.server_address[1]}/?jeton={serveur.jeton}"
-    print("Cockpit JARVIS prêt. Ouvre cette adresse dans ton navigateur :")
+    print("JARVIS prêt. Ouvre cette adresse dans ton navigateur :")
     print("   " + adresse)
     print("(Ctrl + C pour arrêter.)")
     if ouvrir:

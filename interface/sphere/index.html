@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>JARVIS · Second cerveau</title>
+<meta name="color-scheme" content="dark">
+<style>html,body{background:#010409}</style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/sphere/css/jarvis.css">
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"
+} }
+</script>
+</head>
+<body data-page="interface">
+<!-- Interface « sphère » de JARVIS. Elle LIT la mémoire et le journal ; elle ne décide rien.
+     Les modules sont dans /sphere/js/ (sphère, vague, nuit, conversation, tableau, hologrammes). -->
+<div class="app">
+  <header class="haut">
+    <div class="marque">
+      <svg width="34" height="34" viewBox="0 0 40 40" fill="none" aria-hidden="true"><circle cx="20" cy="20" r="18" stroke="#4CC9FF" stroke-opacity=".35"/><circle cx="20" cy="20" r="12" stroke="#4CC9FF" stroke-width="1.5" stroke-dasharray="2 3"/><path d="M20 2v5M20 33v5M2 20h5M33 20h5" stroke="#FF8A3D" stroke-opacity=".9"/><circle cx="20" cy="20" r="3.5" fill="#4CC9FF"/></svg>
+      <div><div class="w">J.A.R.V.I.S</div><div class="s">Second cerveau</div></div>
+    </div>
+    <div class="etat" id="etat" data-s="VEILLE" role="status" aria-live="polite">
+      <div class="st"><i></i><span id="etat-texte">VEILLE</span></div>
+      <div class="horloge" id="horloge">--</div>
+    </div>
+    <div class="droite">
+      <button type="button" class="bvoix" id="voix" aria-pressed="false" title="Lire les réponses à voix haute (voix du navigateur)">VOIX · NON</button>
+      <a class="blien" id="lien-cockpit" href="/cockpit">COCKPIT</a>
+      <span class="badge" id="badge-demo" hidden>Démo · données fictives</span>
+    </div>
+  </header>
+
+  <section class="col gauche" aria-label="Conversation" id="colonne-gauche">
+    <aside class="panneau conversation">
+      <h2>Conversation</h2>
+      <div id="messages" aria-live="polite"></div>
+      <div id="suggestions"></div>
+      <label class="choix-projet">Projet <select id="projet" aria-label="Projet interrogé"></select></label>
+      <form id="formulaire" autocomplete="off">
+        <input id="question" type="text" placeholder="Pose une question à JARVIS" aria-label="Question pour JARVIS" maxlength="300">
+        <button type="button" class="micro" disabled title="Le micro viendra plus tard" aria-label="Micro (plus tard)">●</button>
+        <button type="submit" aria-label="Envoyer">↵</button>
+      </form>
+    </aside>
+  </section>
+
+  <main class="centre" id="centre">
+    <div id="scene"><div id="anneau" hidden></div><div id="bulle" hidden></div><div id="etiquettes"></div></div>
+    <div id="phase" aria-live="polite"></div>
+    <div class="legende" id="legende">
+      <div><i style="background:#8fdcff;color:#4CC9FF"></i>Passif · mémoire (notes)</div>
+      <div><i style="background:#FF8A3D;color:#FF8A3D"></i>Actif · vague d’activation</div>
+      <div><i style="background:#FFD84A;color:#FFD84A"></i>Alerte · à valider</div>
+      <small id="compteur">—</small>
+    </div>
+    <div id="onde-boite" aria-hidden="true"><svg id="onde" viewBox="0 0 200 18"></svg></div>
+    <div id="vide" hidden></div>
+    <div id="sansgl" hidden></div>
+    <div class="sr" id="annonce" aria-live="polite"></div>
+  </main>
+
+  <section class="col droite-col" aria-label="Tableau de bord">
+    <aside class="panneau" aria-label="Système">
+      <h2>Système <b id="sys-nom">machine</b></h2>
+      <div class="barres" id="sys-barres"></div>
+    </aside>
+    <aside class="panneau" aria-label="Dépense IA">
+      <h2>Dépense IA <b id="dep-plafond">plafond —</b></h2>
+      <dl class="depense">
+        <div><dt>Session</dt><dd id="dep-session">—</dd></div>
+        <div><dt>Aujourd’hui</dt><dd id="dep-jour">—</dd></div>
+        <div><dt>Ce mois</dt><dd id="dep-mois">—</dd></div>
+      </dl>
+      <div class="plafond" id="dep-barre"><b></b></div>
+      <p class="plafond-l" id="dep-texte">Local d’abord, cloud seulement pour les grosses tâches.</p>
+    </aside>
+    <aside class="panneau alerte" aria-label="À valider" aria-live="polite">
+      <h2>À valider <b id="nb-a-valider">0</b></h2>
+      <ul id="a-valider"></ul>
+    </aside>
+    <aside class="panneau" aria-label="Journal du jour">
+      <h2>Journal du jour</h2>
+      <ul id="journal"></ul>
+    </aside>
+  </section>
+</div>
+
+<dialog id="editeur" aria-labelledby="editeur-titre">
+  <form method="dialog" id="editeur-form">
+    <h3 id="editeur-titre">Note</h3>
+    <div class="meta" id="editeur-meta"></div>
+    <textarea id="editeur-texte" aria-label="Texte de la note"></textarea>
+    <div class="bt"><button type="button" id="editeur-fermer">Fermer</button><button type="button" class="ok" id="editeur-enregistrer">Enregistrer</button></div>
+  </form>
+</dialog>
+
+<script type="module" src="/sphere/js/main.js"></script>
+</body>
+</html>
