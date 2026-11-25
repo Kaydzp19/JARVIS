@@ -64,7 +64,6 @@ async function demarrer() {
   let donnees = await source.sphere();
   const demo = source.mode === 'demo' || !!donnees.demo;
   $('badge-demo').hidden = !demo;
-  if (source.repli && !enLigne) $('lien-cockpit').hidden = true;
   if (source.mode === 'reel') source.peutSimulerNuit = donnees.projets.some((p) => p.demo);
   horloge(); setInterval(horloge, 20000);
 
@@ -140,6 +139,7 @@ async function demarrer() {
       },
       surNote(n) { sphere.allumer(n.projet, n.id); },
       surOuvrirNote(n) {
+        if (n.parKayd) { editeur.ouvrir(n.projet, n.id); return; }
         if (n.sensible) { conv.outil('ouvrir_note · refusé', { texte: 'note sensible : elle reste fermée ici', prive: true }); return; }
         editeur.ouvrir(n.projet, n.id, { depuisWidget: true });
       },

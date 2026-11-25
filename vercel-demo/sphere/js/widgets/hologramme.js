@@ -243,6 +243,10 @@ export function creerHologrammes({ sphere, centre, surAction, surNote, surOuvrir
       if (ecrit) b.setAttribute('aria-label', `${a.libelle} : crée une proposition à valider, rien n’est exécuté ici`);
       b.addEventListener('click', () => {
         if (a.id === 'ouvrir_note') { const n = noteChoisie(); if (n) surOuvrirNote(n); return; }
+        if (a.id === 'ouvrir_note_locale') {          // geste de Kayd, sur sa machine (jamais JARVIS)
+          surOuvrirNote({ projet: o.ev.projet, id: o.ev.donnees.id, sensible: true, parKayd: true });
+          return;
+        }
         const n = noteChoisie();
         surAction(o.ev, a.id, n ? { note: n.id } : {});
       });

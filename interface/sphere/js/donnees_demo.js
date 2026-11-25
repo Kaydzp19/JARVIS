@@ -12,7 +12,7 @@ export const PROJETS_DEMO = [
 ];
 const VOC = ['budget', 'routeur-ia', 'synapse', 'sommeil', 'garde-écriture', 'corps-calleux', 'journal',
   'dépôt-privé', 'étanchéité', 'secrets', 'serveur-mcp', 'recherche-fts5', 'oubli', 'renforcement',
-  'cockpit', 'éditeur-notes', 'sphère-3d', 'voix', 'ollama', 'licence', 'open-source', 'sauvegarde',
+  'tableau-de-bord', 'éditeur-notes', 'sphère-3d', 'voix', 'ollama', 'licence', 'open-source', 'sauvegarde',
   'tâches', 'propositions', 'réglages', 'poids', 'seuil-archivage', 'plafond-api', 'notes-sensibles',
   'démo', 'lisez-moi', 'idées', 'objectifs', 'décisions', 'contraintes', 'orchestrateur'];
 export const ROUTEUR_SANS_IA = 'routeur : aucun appel IA';
@@ -261,11 +261,13 @@ export function creerSourceDemo(options = {}) {
       }
       if (route === 'nuit') return rep('nuit', 'sommeil.simuler()', '', null, null);
       if (route === 'note_privee') {
+        const b = trouver('Projet B'), privee = b.neurones.find((n) => n.sensible);
         const ev = afficher({ scene: 'note_privee', titre: 'Note sensible', projet: 'Projet B',
-          donnees: { titre: 'agenda-privé', id: 0, caracteres: 255 } });
+          donnees: { titre: privee.titre, id: privee.id, caracteres: 255 },
+          actions: [{ id: 'ouvrir_note_locale', libelle: 'Ouvrir dans l’éditeur local' }] });
         note(hm(), 'Projet B', 'ouvrir_note', 'contenu privé, 255 caractères', true);
-        return rep('ouvrir_note', 'ouvrir_note(projet="Projet B", titre="agenda-privé")',
-          'Cette note est marquée sensible : je ne l’affiche pas ici. Ouvre-la toi-même dans l’éditeur local.', ev);
+        return rep('ouvrir_note', `ouvrir_note(projet="Projet B", titre="${privee.titre}")`,
+          'Cette note est marquée sensible : je ne l’affiche pas ici. Tu peux l’ouvrir toi-même dans l’éditeur local.', ev);
       }
       if (route === 'machine') {
         const ev = afficher({ scene: 'machine', titre: 'Machine', donnees: machine(), actions: [{ id: 'rafraichir', libelle: 'Actualiser' }] });

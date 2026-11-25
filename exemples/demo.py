@@ -9,7 +9,7 @@ Ce que fait la démo, dans l'ordre :
   2. écrit et VALIDE des notes, relie certaines par des [[liens]] ;
   3. simule quelques jours d'usage, puis lance une nuit (tri, analyse, rêve, réveil) ;
   4. génère des propositions (slogan, tri, synthèse) qui attendent ta validation ;
-  5. ouvre l'interface (la sphère ; l'ancien cockpit est à /cockpit) dans ton navigateur.
+  5. ouvre le cockpit (la sphère, la conversation, les widgets) dans ton navigateur.
 
 Les données de démo vont dans ~/.jarvis/demo/ : elles ne se mêlent jamais à tes
 vrais projets (~/.jarvis/projets/). Supprimer ce dossier efface la démo.
@@ -206,7 +206,7 @@ def main(argv=None):
         valider_par_la_commande(dossier)
     interroger_par_mcp(dossier)
     if not args.sans_interface:
-        print("6. Interface : la sphère, et l'ancien cockpit à /cockpit (Ctrl + C pour arrêter).")
+        print("6. Cockpit : la sphère, la conversation et les widgets (Ctrl + C pour arrêter).")
         from interface import serveur_web
         serveur_web.lancer(port=args.port, ouvrir=not args.sans_navigateur)
 

@@ -528,7 +528,7 @@ def liens_casses(projet, racine=None):
 
 
 def titres_et_liens(projet, racine=None):
-    """Pour le cerveau 3D : uniquement titres et liens, jamais le contenu."""
+    """Pour la sphère : uniquement titres et liens, jamais le contenu."""
     notes = [{"id": n["id"], "titre": n["titre"], "validee": bool(n.get("validee", 0))}
              for n in projets.lister_notes(projet, racine)]
     liens = [{"source": s["note_source"], "cible": s["note_cible"], "poids": s["poids"]}

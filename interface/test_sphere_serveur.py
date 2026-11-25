@@ -1,7 +1,7 @@
 """
 Tests de la marche 7 · design : le serveur de l'interface « sphère ».
 
-- les pages (/ = sphère, /cockpit = ancien cockpit, /sphere/… = fichiers) sont protégées ;
+- les pages (/ = le cockpit, /sphere/… = ses fichiers) sont protégées ;
 - /api/sphere ne contient que des titres, des identifiants et des poids ;
 - /api/demander : routage par code, trace sans texte de note, renforcement des notes validées ;
 - /api/affichage/action : mise à jour en lecture, garde d'écriture ;
@@ -59,7 +59,7 @@ class Base(TestTemporaire):
 class TestPages(Base):
 
     def test_pages_protegees(self):
-        for chemin in ("/", "/cockpit", "/sphere/js/main.js", "/api/sphere", "/api/systeme"):
+        for chemin in ("/", "/sphere/js/main.js", "/api/sphere", "/api/systeme"):
             self.assertEqual(self.appel(chemin, jeton="")[0], 401, chemin)
 
     def test_page_sphere(self):

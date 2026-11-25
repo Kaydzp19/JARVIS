@@ -1,1 +1,1 @@
-"""Interface de JARVIS (cockpit web)."""
+"""Le cockpit de JARVIS : serveur web local et interface « sphère »."""

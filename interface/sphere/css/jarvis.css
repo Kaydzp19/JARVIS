@@ -32,10 +32,9 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
 .etat[data-s=REPONSE] .st,.etat[data-s=REPONSE] .st i{color:#fff}.etat[data-s=REPONSE] .st i{background:#fff}
 .etat .horloge{font:500 11px/1 var(--mono);letter-spacing:.08em;color:var(--mu);padding-left:14px;border-left:1px solid var(--ln);white-space:nowrap}
 .droite{display:flex;align-items:center;gap:10px;flex:0 0 auto}
-.bvoix,.blien{padding:7px 12px;border:1px solid var(--ln);border-radius:20px;background:transparent;color:var(--mu);
+.bvoix{padding:7px 12px;border:1px solid var(--ln);border-radius:20px;background:transparent;color:var(--mu);
   font:500 10px/1 var(--mono);letter-spacing:.14em;white-space:nowrap;text-decoration:none}
 .bvoix[aria-pressed=true]{color:#fff;border-color:var(--ln2);background:rgba(76,201,255,.14)}
-.blien:hover{color:var(--tx);border-color:var(--ln2)}
 .badge{font:500 10px/1 var(--mono);letter-spacing:.14em;color:var(--mu);border:1px solid var(--ln);border-radius:20px;padding:7px 12px;white-space:nowrap;text-transform:uppercase}
 .badge::before{content:"";display:inline-block;width:6px;height:6px;margin-right:8px;border-radius:50%;background:var(--yl);vertical-align:1px}
 
@@ -174,7 +173,6 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
 #catalogue-sortie{margin:10px 0 0;font:400 10.5px/1.6 var(--mono);color:var(--mu);white-space:pre-wrap;word-break:break-word}
 
 @media (max-width:1300px){.app{grid-template-columns:284px minmax(0,1fr) 266px}.etat .horloge{display:none}}
-@media (max-width:1100px){.blien{display:none}}
 @media (max-width:900px){
   .app{height:auto;min-height:100vh;overflow:visible;display:flex;flex-direction:column;padding:0 14px 24px;gap:14px}
   .haut{padding:14px 2px 0;flex-wrap:wrap;order:-2;gap:10px 14px}

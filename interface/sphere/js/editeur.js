@@ -1,6 +1,6 @@
 // Éditeur local : Kayd ouvre une note (action humaine, sur sa machine).
 // Une note SENSIBLE n'est jamais ouverte depuis un hologramme : elle reste refusée,
-// Kayd l'ouvre lui-même dans le cockpit (/cockpit → Notes).
+// Kayd l'ouvre lui-même avec « Ouvrir dans l’éditeur local » (hologramme « Note sensible »).
 
 import { $ } from './outils.js';
 
@@ -11,7 +11,7 @@ export function creerEditeur({ source, surMessage }) {
   async function ouvrir(projet, id, { depuisWidget = false } = {}) {
     let n;
     try { n = await source.note(projet, id); } catch (e) { surMessage(`Impossible d’ouvrir la note : ${e.message}`); return false; }
-    if (n.sensible && depuisWidget) { surMessage(`« ${n.titre} » est sensible : elle reste fermée ici. Ouvre-la toi-même dans le cockpit.`); return false; }
+    if (n.sensible && depuisWidget) { surMessage(`« ${n.titre} » est sensible : elle reste fermée ici. Demande « ouvre la note … » pour l’ouvrir toi-même dans l’éditeur local.`); return false; }
     courant = n;
     avant = document.activeElement;
     $('editeur-titre').textContent = n.titre;

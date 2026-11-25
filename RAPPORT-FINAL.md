@@ -3,6 +3,9 @@
 Branche `prototype-1`, 22 novembre 2026. Rien n'a été poussé, fusionné ni supprimé
 pendant cette session : tout est en commits locaux, en attente de l'accord de Kayd.
 
+> **Historique.** Les sections 1 à 6 décrivent le prototype n°1. Ses écrans (cerveau 3D,
+> quatre écrans) ont été remplacés en marche 7 par le cockpit « sphère » décrit plus bas.
+
 ## 1. État de départ
 
 - Branche la plus avancée : `prototype-1` (elle contient `marche-1-projets`, `marche-2-synapses`,
@@ -117,7 +120,7 @@ avec la suite de tests au vert.
 2. **Trace de recherche** (`se_souvenir_trace`) : notation par code (pertinence, force des
    synapses, fraîcheur, importance), propagation depuis 3 graines, chemins ; uniquement des
    identifiants, titres, scores et liens.
-3. **Serveur** : « / » = sphère, « /cockpit » = ancien cockpit, routes `/api/sphere`,
+3. **Serveur** : « / » = le cockpit (sphère), routes `/api/sphere`,
    `/api/demander`, `/api/affichage(/action)`, `/api/systeme`, `/api/depenses`,
    `/api/a_valider`, `/api/journal_du_jour` ; conversation routée par code, sans IA.
 4. **Interface** (`interface/sphere/`) : sphère (un seul objet Points, shaders), vague en
@@ -128,8 +131,7 @@ avec la suite de tests au vert.
 
 ## Choix faits seul
 
-- Nouvelle interface à « / », ancien cockpit gardé à « /cockpit » (la démo en ligne Vercel,
-  générée depuis l'ancien cockpit, ne change pas).
+- Le cockpit est à « / » ; l'ancien cockpit à quatre écrans a été supprimé (décision de Kayd).
 - Un seul hologramme à la fois ; position et taille mémorisées par type (sur le navigateur) ;
   fixe sur iPhone.
 - Les contrôles des hologrammes sont de vrais boutons posés sur le panneau 3D (clavier,

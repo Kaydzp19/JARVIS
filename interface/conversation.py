@@ -188,7 +188,8 @@ def _ouvrir_note(texte, projet, racine):
         taille = len(projets.lire_note(p, note["id"], racine))
         ev = affichage.afficher("note_privee", "Note sensible", {
             "titre": note["titre"], "id": note["id"], "caracteres": taille},
-            projet=p, racine=racine)
+            projet=p, racine=racine,
+            actions=[{"id": "ouvrir_note_locale", "libelle": "Ouvrir dans l’éditeur local"}])
         return dict(base, affichage=ev,
                     reponse=f"« {note['titre']} » est une note sensible : je ne l'affiche pas. "
                             "Tu peux l'ouvrir toi-même dans l'éditeur local.")

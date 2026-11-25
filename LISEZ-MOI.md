@@ -9,14 +9,14 @@ jamais rien écrire seuls : c'est toi qui valides.
 > installer**), avec une IA **simulée** par défaut : 0 €, aucune clé, aucun réseau nécessaire.
 > 184 tests automatiques, tous réussis.
 
-![Le cerveau 3D de JARVIS : deux hémisphères reliés par le corps calleux](docs/maquettes/cerveau-3d.png)
+![Le cockpit de JARVIS : la sphère de la mémoire, la conversation et les widgets](docs/maquettes/sphere-1440x880-notes-retenues.png)
 
 ## Les mots à connaître
 
 | Mot | Ce que c'est |
 |---|---|
 | **Projet** | Un dossier étanche : ses notes, sa base, son journal. Aucun lien entre deux projets. |
-| **Neurone** | Une note (fichier texte Markdown). Le contenu ne s'affiche jamais dans le cerveau 3D. |
+| **Neurone** | Une note (fichier texte Markdown). Le contenu ne s'affiche jamais dans la sphère. |
 | **Synapse** | Un lien `[[Titre]]` entre deux notes, avec un poids de 0 à 1. Il monte de 0,10 quand les notes servent ensemble (si elles sont validées), baisse de 2 % chaque nuit, et s'archive sous 0,05. |
 | **Hémisphère passif** | La mémoire : notes, synapses, journal, sommeil. |
 | **Hémisphère actif** | L'action : orchestrateur, agents, routeur IA, modules. |
@@ -51,16 +51,15 @@ La démo utilise de **fausses données** (« Projet A » et « Projet B ») rang
    3. Orchestrateur : les 4 voies d'agents font leurs propositions ;
    4. Garde d'écriture : une proposition validée par la commande `python3 -m noyau.valider` ;
    5. Corps calleux : la mémoire lue par un vrai client MCP, comme le ferait Claude ;
-   6. Interface : ton navigateur s'ouvre sur la **sphère** (voir « L'interface sphère » plus bas).
+   6. Cockpit : ton navigateur s'ouvre sur la **sphère** (voir « Le cockpit » plus bas).
       Laisse le Terminal ouvert.
 6. **À essayer dans le navigateur :**
    - **Sphère** : pose une question (« Que sais-tu de ce projet ? »), regarde la vague orange,
      puis l'hologramme des notes retenues ; « État de ma machine », « Graphique de mes dépenses »,
      « Simule une nuit » ; **Valider** / **Refuser** dans la colonne de droite.
-   - **Ancien cockpit** (bouton **COCKPIT** en haut, ou l'adresse `/cockpit`) : cerveau 3D,
-     l'ordre du moment (Fait / Pas fait), les 4 voies d'agents, l'idée du jour.
-   - **Notes** : lire, écrire, relier avec `[[Titre]]`.
-   - **Version iPhone** : rétrécis la fenêtre ; le graphe passe en haut, les panneaux en liste dessous.
+   - **Notes** : « ouvre la note Offre » ouvre l'éditeur local ; relie tes notes avec `[[Titre]]`.
+   - **Version iPhone** : rétrécis la fenêtre ; la sphère passe en haut, la conversation et les
+     widgets en liste dessous.
 7. **Arrêter** : **Ctrl + C** dans le Terminal. Repartir d'une démo neuve :
    `python3 exemples/demo.py --remplacer`.
 
@@ -71,7 +70,7 @@ polices : l'interface affiche alors la liste de tes notes (titres seulement).
 
 | Pour… | Commande (dans le dossier JARVIS) |
 |---|---|
-| Ouvrir l'interface sur tes données (`~/.jarvis/`) | `python3 jarvis.py interface` |
+| Ouvrir le cockpit sur tes données (`~/.jarvis/`) | `python3 jarvis.py cockpit` |
 | Voir les propositions en attente | `python3 -m noyau.valider` |
 | Valider (ou refuser) une proposition | `python3 -m noyau.valider "Projet:3"` (`--refuser "raison"`) |
 | Lancer un tour de l'orchestrateur | `python3 jarvis.py tour` |
@@ -86,9 +85,9 @@ polices : l'interface affiche alors la liste de tes notes (titres seulement).
 Toutes les commandes : `python3 jarvis.py --help`. Pour essayer sur un autre dossier de données :
 `python3 jarvis.py --dossier /un/dossier …`.
 
-## L'interface « sphère » (marche 7)
+## Le cockpit (marche 7)
 
-`python3 jarvis.py interface` ouvre l'interface dans ton navigateur (adresse locale
+`python3 jarvis.py cockpit` ouvre le cockpit dans ton navigateur (adresse locale
 `127.0.0.1`, protégée par un jeton). Au centre, **une seule sphère** : un neurone par note, une
 synapse par lien pondéré, une région par projet (jamais de synapse entre deux projets).
 
@@ -132,16 +131,11 @@ Le dossier `vercel-demo/` est une **version de démonstration** de l'interface, 
 fichiers (HTML, JavaScript, JSON), qu'on peut publier telle quelle sur Vercel (un hébergeur de
 sites) : aucun serveur Python, aucune clé, aucune donnée réelle.
 
-- **Page d'accueil = l'interface « sphère »**, en mode démo : 220 neurones fictifs calculés dans
-  le navigateur, la vague en 4 temps, les hologrammes, « Simule une nuit », la garde d'écriture.
-  Le **catalogue** des hologrammes est à `/sphere/catalogue.html`.
-- **L'ancien cockpit** est à `/cockpit` : les deux projets fictifs de la démo (cerveau 3D, cockpit,
-  notes, journal), avec leurs titres, liens, poids, propositions et journal. Jamais le texte des notes.
-- **Ce qu'on peut faire dans l'ancien cockpit** : « Simuler une nuit » (oubli 0,02, apprentissage 0,10, archivage sous
-  0,05, calculés dans le navigateur, avec exactement les mêmes résultats que le vrai JARVIS),
-  valider ou refuser une proposition, Fait / Pas fait, garder ou rejeter l'idée du jour. Un bandeau
-  le rappelle : « Démo en ligne : données fictives, rien n'est enregistré ». Tout revient à zéro
-  quand on recharge la page.
+- **Le cockpit en mode démo** : 220 neurones fictifs calculés dans le navigateur, la vague en
+  4 temps, les hologrammes, la planification, « Simule une nuit » (oubli 2 %, apprentissage +0,10,
+  archivage sous 0,05), la garde d'écriture. Le badge « Démo · données fictives » le rappelle :
+  rien n'est enregistré, tout revient à zéro quand on recharge la page.
+- Le **catalogue** des hologrammes est à `/sphere/catalogue.html`.
 
 **Refaire l'export** (après un changement de l'interface ou de la démo), dans le dossier JARVIS :
 
@@ -149,11 +143,9 @@ sites) : aucun serveur Python, aucune clé, aucune donnée réelle.
 python3 exemples/export_demo.py
 ```
 
-Le script fait tourner la démo dans un dossier temporaire (jamais `~/.jarvis`), puis écrit
-`vercel-demo/data/*.json`, `vercel-demo/cockpit.html`, et copie l'interface « sphère »
-(`vercel-demo/index.html` et `vercel-demo/sphere/`). Un test (`interface/test_demo_en_ligne.py`)
-vérifie que le site est à jour et qu'aucun chemin local, aucune clé et aucun texte de note n'y
-figure.
+Le script copie le cockpit (`interface/sphere/`) dans `vercel-demo/index.html` et
+`vercel-demo/sphere/`, en mode « démo en ligne ». Un test (`interface/test_demo_en_ligne.py`)
+vérifie que le site est à jour et qu'aucune clé ni aucun chemin local n'y figure.
 
 **La voir sur ton Mac avant de la publier** :
 
@@ -161,8 +153,7 @@ figure.
 python3 -m http.server 8000 --directory vercel-demo
 ```
 
-puis ouvre http://localhost:8000 dans ton navigateur (**Ctrl + C** pour arrêter). Avec ce petit
-serveur, l'ancien cockpit est à http://localhost:8000/cockpit.html (sur Vercel : `/cockpit`).
+puis ouvre http://localhost:8000 dans ton navigateur (**Ctrl + C** pour arrêter).
 
 **La publier sur Vercel** : sur vercel.com, « Add New… › Project », importe le dépôt GitHub, choisis
 la branche `vercel-demo`, et laisse les réglages par défaut : le fichier `vercel.json` (à la racine)
@@ -204,8 +195,7 @@ Ce fichier est créé tout seul à la première commande, **hors du dépôt**. L
 | `noyau/sommeil.py`, `noyau/reve.py`, `noyau/ia_demo.py` | Sommeil (tri, analyse) et rêve (rêve, réveil) ; l'IA simulée |
 | `noyau/modules.py`, `modules/notifications/` | La prise standard des modules et le premier module |
 | `interface/serveur_web.py`, `interface/conversation.py`, `interface/fournisseurs.py` | Le serveur web local (127.0.0.1 seulement), la conversation (routage par code) et les données des widgets |
-| `interface/sphere/` | L'interface « sphère » : `js/` (sphère, vague, nuit, conversation, tableau, hologrammes), `css/`, catalogue, tests |
-| `interface/cockpit.html` | L'ancien cockpit (cerveau 3D, notes, journal), à l'adresse `/cockpit` |
+| `interface/sphere/` | Le cockpit (interface « sphère ») : `js/` (sphère, vague, nuit, conversation, tableau, hologrammes), `css/`, catalogue, tests |
 | `noyau/affichage.py` | Le contrat des hologrammes : événements validés, mises à jour, garde d'écriture des widgets |
 | `exemples/demo.py` | La démo de bout en bout |
 | `exemples/export_demo.py`, `vercel-demo/`, `vercel.json` | La démo en ligne : export, site statique, réglage Vercel |
@@ -224,16 +214,9 @@ qui est particulier devient un module dans `modules/`.
   [graphique](docs/maquettes/catalogue-1440x880-graphique.png) ·
   [météo](docs/maquettes/catalogue-1440x880-meteo.png) ·
   [après la nuit](docs/maquettes/catalogue-1440x880-apres-la-nuit.png)
-- Ancien cockpit : [cerveau 3D](docs/maquettes/cerveau-3d.png) · [cockpit](docs/maquettes/cockpit.png) ·
-  [iPhone, cerveau](docs/maquettes/iphone-cerveau.png) · [iPhone, cockpit](docs/maquettes/iphone-cockpit.png)
-- Maquettes de référence (privées, sur ton compte claude.ai) :
-  [cerveau 3D](https://claude.ai/artifact/KeQgGmVcuthtFE3QT6oxmc) ·
-  [cockpit Mac et iPhone](https://claude.ai/artifact/DkTEuJwajiCwFuZM3fv83d)
 - Interface sphère : fond `#010409`, bleu-cyan `#4CC9FF` → blanc bleuté au repos, orange `#FF8A3D`
   pour l'activation, jaune `#FFD84A` pour ce qui attend ta validation, texte `#F1F8FF`,
   gris-bleu `#8FA9C2` ; maquette de référence : `exemples/JARVIS_maquette_sphere.html`.
-- Ancien cockpit : fond `#030811`, cyan `#5CE1FF` dominant, blanc `#E6F7FF`, gris-bleu `#86A9BC`,
-  ambre `#FFB547` réservé à ce qui demande une action ; titres en Rajdhani, données en JetBrains Mono.
 
 ## Règle d'or : aucun secret dans ce dépôt
 
