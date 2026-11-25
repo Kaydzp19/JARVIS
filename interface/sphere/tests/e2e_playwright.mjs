@@ -139,6 +139,71 @@ try {
   await p.locator('#a-valider button.ok').first().click();
   await p.waitForFunction((n) => Number(document.getElementById('nb-a-valider').textContent) === n - 1, n0, { timeout: 10000 }).catch(() => {});
   ok('Valider (garde d’écriture)', Number(await p.textContent('#nb-a-valider')) === n0 - 1);
+
+  // ---------- impulsions pendant une réponse, puis plus aucun redessin au repos ----------
+  await p.evaluate(() => { window.__imp = 0; window.__vuesImp = 0; window.__JARVIS.parole.abonner((e) => { if (e.type === 'impulsion') window.__imp++; }); });
+  await p.fill('#question', 'Résumé de la nuit');
+  await p.press('#question', 'Enter');
+  for (let i = 0; i < 80; i++) {
+    await p.waitForTimeout(150);
+    if (await p.evaluate(() => window.__JARVIS.sphere.S.impulsions.length > 0)) await p.evaluate(() => { window.__vuesImp++; });
+    if (!(await p.evaluate(() => window.__JARVIS.occupe))) break;
+  }
+  await attendreLibre(p);
+  ok('réponse : impulsions de parole (une par mot)', (await p.evaluate(() => window.__imp)) > 8, await p.evaluate(() => window.__imp));
+  ok('réponse : impulsions visibles sur la sphère', (await p.evaluate(() => window.__vuesImp)) > 2);
+  await p.keyboard.press('Escape');
+  await p.waitForTimeout(2500);
+  ok('réponse finie : intensité revenue à zéro', (await p.evaluate(() => window.__JARVIS.parole.valeur)) === 0);
+  const i0 = await p.evaluate(() => window.__JARVIS.sphere.S.images);
+  await p.waitForTimeout(3000);
+  const i1 = await p.evaluate(() => window.__JARVIS.sphere.S.images);
+  ok('repos : aucune image redessinée en 3 s', i1 === i0, i1 - i0);
+  await p.mouse.move(700, 300); await p.mouse.move(720, 320);
+  await p.waitForTimeout(300);
+  ok('survol : la sphère redessine à la demande', (await p.evaluate(() => window.__JARVIS.sphere.S.images)) > i1);
+
+  // ---------- planification : créer, modifier (glisser), terminer, supprimer ----------
+  ok('carte Planification : 3 prochaines tâches', (await p.locator('#planif-liste li button').count()) === 3);
+  await p.click('#planif-ouvrir');
+  await p.waitForTimeout(1500);
+  ok('planification ouverte (semaine)', (await scene(p)) === 'planification');
+  await capture(p, 'cockpit-1440x880-planification');
+  await p.click('.holo button[data-local="ajouter"]');
+  await p.fill('#tache-titre', 'Tâche de test');
+  await p.fill('#tache-date', await p.evaluate(() => window.__JARVIS.holo.courant.donnees.aujourd_hui));
+  await p.fill('#tache-heure', '15:00');
+  await p.selectOption('#tache-priorite', 'haute');
+  await p.click('#tache-enregistrer');
+  await p.waitForTimeout(1200);
+  const trouve = () => p.evaluate(() => window.__JARVIS.holo.courant.donnees.taches.find((t) => t.titre === 'Tâche de test') || null);
+  ok('tâche créée (enregistrée directement)', !!(await trouve()));
+  const zt = () => p.locator('.holo .zone[aria-label^="Tâche : Tâche de test"]');
+  const bb = await zt().boundingBox();
+  await p.mouse.move(bb.x + bb.width / 2, bb.y + bb.height / 2); await p.mouse.down();
+  await p.mouse.move(bb.x + bb.width / 2 + 80, bb.y + bb.height / 2, { steps: 8 }); await p.mouse.up();
+  await p.waitForTimeout(1200);
+  ok('tâche déplacée à la souris', ((await trouve()) || {}).heure > '15:00', ((await trouve()) || {}).heure);
+  await zt().click(); await p.waitForTimeout(300);
+  await p.fill('#tache-titre', 'Tâche de test modifiée');
+  await p.click('#tache-enregistrer'); await p.waitForTimeout(1200);
+  const zm = () => p.locator('.holo .zone[aria-label^="Tâche : Tâche de test modifiée"]');
+  ok('tâche modifiée', (await zm().count()) === 1);
+  await zm().click(); await p.waitForTimeout(300);
+  await p.click('#tache-fait'); await p.waitForTimeout(1200);
+  ok('tâche terminée (fait)', (await p.evaluate(() => (window.__JARVIS.holo.courant.donnees.taches.find((t) => t.titre === 'Tâche de test modifiée') || {}).statut)) === 'fait');
+  await zm().click(); await p.waitForTimeout(300);
+  await p.click('#tache-supprimer'); await p.click('#tache-supprimer'); await p.waitForTimeout(1200);
+  ok('tâche supprimée', (await zm().count()) === 0);
+  const jr = (await p.textContent('#messages')) || '';
+  ok('chaque changement journalisé', ['tâche créée', 'déplacée', 'tâche modifiée', 'tâche fait', 'tâche supprimée'].every((m) => jr.includes(m)));
+  await p.selectOption('.holo .controles select', 'tous').catch(async () => p.click('.holo .controles button:has-text("tous")'));
+  await p.waitForTimeout(1200);
+  ok('vue « tous les projets » en lecture seule', (await p.evaluate(() => window.__JARVIS.holo.courant.donnees.lecture_seule)) && (await p.locator('.holo button[data-local="ajouter"]').count()) === 0);
+  await p.keyboard.press('Escape');
+  await p.waitForTimeout(600);
+  await demander(p, 'Mes tâches de demain');
+  ok('JARVIS ouvre la planification (demain, vue jour)', (await p.evaluate(() => window.__JARVIS.holo.courant && window.__JARVIS.holo.courant.donnees.vue)) === 'jour');
   await p.context().close();
 
   // ---------- iPhone ----------
@@ -148,6 +213,12 @@ try {
   const larg = await m.evaluate(() => document.documentElement.scrollWidth);
   ok('iPhone : pas de défilement horizontal', larg <= 390, larg);
   await capture(m, 'sphere-390x844-notes-retenues');
+  await m.keyboard.press('Escape');
+  await m.waitForTimeout(500);
+  await m.click('#planif-ouvrir');
+  await m.waitForTimeout(1500);
+  ok('iPhone : planification', (await scene(m)) === 'planification');
+  await capture(m, 'cockpit-390x844-planification');
   await m.context().close();
 
   // ---------- catalogue (mode démo : 220 neurones) ----------
@@ -155,7 +226,7 @@ try {
   ok('catalogue en mode démo', await c.evaluate(() => window.__JARVIS.mode === 'demo'));
   ok('démo : rien à valider au démarrage', (await c.textContent('#nb-a-valider')).trim() === '0');
   ok('démo : 220 neurones', (await c.textContent('#compteur')).startsWith('220 neurones'));
-  const attendu = { 'Notes retenues': 'notes_retenues', 'Tous les projets': 'notes_retenues', 'Graphique 3D': 'graphique',
+  const attendu = { 'Notes retenues': 'notes_retenues', 'Tous les projets': 'notes_retenues', Planification: 'planification', 'Graphique 3D': 'graphique',
     Machine: 'machine', Météo: 'meteo', 'Résumé de la nuit': 'resume_nuit', 'Note sensible refusée': 'note_privee',
     'Scène inconnue': 'carte_projets' };
   for (const [bouton, sc] of Object.entries(attendu)) {

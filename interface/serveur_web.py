@@ -314,10 +314,20 @@ class Gestionnaire(BaseHTTPRequestHandler):
             self._envoyer(400, {"erreur": f"{type(e).__name__} : {e}"})
 
 
+class ServeurSilencieux(ThreadingHTTPServer):
+    """Un navigateur qui ferme sa connexion en cours de route n'est pas une erreur à afficher."""
+    daemon_threads = True
+
+    def handle_error(self, request, client_address):
+        if isinstance(sys.exc_info()[1], (ConnectionError, TimeoutError)):
+            return
+        super().handle_error(request, client_address)
+
+
 def creer_serveur(port=8765, jeton=None, racine=None, hote="127.0.0.1"):
     jeton = jeton or reglages.lire("COCKPIT_JETON") or secrets.token_urlsafe(16)
     gestionnaire = type("GestionnaireJarvis", (Gestionnaire,), {"jeton": jeton, "racine": racine})
-    serveur = ThreadingHTTPServer((hote, port), gestionnaire)
+    serveur = ServeurSilencieux((hote, port), gestionnaire)
     from interface import fournisseurs
     fournisseurs.demarrer_session(racine)
     serveur.jeton = jeton

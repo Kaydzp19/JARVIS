@@ -154,7 +154,12 @@ async function demarrer() {
   });
   async function ouvrirPlanification(projet) {
     if (!holo) return;
-    try { afficher(await source.ouvrirPlanification(projet || choix.value || '*')); } catch (e) { conv.outil('planification · erreur', e.message); }
+    const telephone = window.matchMedia && window.matchMedia('(max-width: 560px)').matches;
+    try { afficher(await source.ouvrirPlanification(projet || choix.value || '*', undefined, telephone ? 'liste' : 'semaine')); } catch (e) { conv.outil('planification · erreur', e.message); }
+    // Sur téléphone, la sphère (et l'hologramme) est en haut de la page : on y remonte.
+    if (window.matchMedia && window.matchMedia('(max-width: 900px)').matches) {
+      $('centre').scrollIntoView({ block: 'start', behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+    }
   }
   $('planif-ouvrir').addEventListener('click', () => ouvrirPlanification(choix.value));
   $('planif-ajouter').addEventListener('click', () => {

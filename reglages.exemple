@@ -52,3 +52,8 @@ COCKPIT_JETON=
 # Position pour l'hologramme météo (Open-Meteo, sans clé). Vide = pas de météo.
 METEO_LATITUDE=
 METEO_LONGITUDE=
+
+# Agenda Apple (module agenda, lecture seule sur ton Mac) : « occupé » au lieu des titres,
+# et calendriers à lire (vide = tous).
+agenda_masquer_titres=false
+agenda_calendriers=

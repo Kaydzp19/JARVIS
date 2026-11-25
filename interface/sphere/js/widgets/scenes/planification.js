@@ -113,7 +113,7 @@ export default {
     const d = ev.donnees, ro = !!d.lecture_seule, tous = d.projet === '*';
     const fin = plusJours(d.debut, d.jours - 1);
     const periode = d.jours === 1 ? libelleDate(d.debut) : `${libelleDate(d.debut)} → ${libelleDate(fin)}`;
-    const C = cadre(c, W, H, ev.titre, `${tous ? 'tous les projets · lecture seule' : d.projet} · ${periode}`, W >= 560 ? 50 : 84);
+    const C = cadre(c, W, H, ev.titre, `${tous ? 'tous les projets · lecture seule' : d.projet} · ${periode}`, W >= 780 ? 50 : W >= 560 ? 84 : 118);
     const R = { x: C.x, y: C.y + 14, w: C.w, h: C.h - 14 };
     const zones = [], ext = d.externes || {}, externes = ext.disponible ? ext.evenements || [] : [];
     // légende : agenda Apple
@@ -128,23 +128,25 @@ export default {
       d.taches.forEach((t) => { if (t.date !== dernier) { lignes.push({ titre: libelleDate(t.date), aujourd: t.date === d.aujourd_hui }); dernier = t.date; } lignes.push({ t }); });
       if (d.sans_date && d.sans_date.length) { lignes.push({ titre: 'Sans date' }); d.sans_date.forEach((t) => lignes.push({ t })); }
       if (!lignes.length) tx(c, ro ? 'Aucune tâche sur cette période.' : 'Aucune tâche sur cette période. « ＋ Tâche » pour en ajouter une.', R.x, R.y + 24, 14, COULEURS.gris, 500);
-      const rh = 24, max = Math.floor((R.h - 4) / rh);
+      const rh = 24, place = Math.floor((R.h - 4) / rh), deborde = lignes.length > place;
+      const max = deborde ? place - 1 : place;          // la dernière ligne annonce la suite
       lignes.slice(0, max).forEach((l, i) => {
         const y = R.y + 4 + i * rh;
         if (l.titre) { section(c, l.titre.toUpperCase() + (l.aujourd ? ' · AUJOURD’HUI' : ''), R.x, y + 15); return; }
         const t = l.t, coul = couleurTache(t);
         c.fillStyle = coul.bord; c.fillRect(R.x, y + 5, 3, rh - 9);
         tx(c, t.heure || '—', R.x + 10, y + 16, 11, COULEURS.gris, 500, 'm');
-        c.font = '600 14px Rajdhani';
-        const titre = couper(c, (t.statut === 'fait' ? '✓ ' : t.statut === 'pas fait' ? '✕ ' : '') + t.titre, R.w * 0.5);
-        tx(c, titre, R.x + 58, y + 16, 14, coul.texte, 600);
         const etq = [tous ? t.projet : null, t.recurrence !== 'aucune' ? '↻ ' + LIBELLES_RECURRENCE[t.recurrence] : null,
           t.note_titre ? '◆ ' + t.note_titre : null, `${t.duree} min`].filter(Boolean).join(' · ');
         c.font = '400 10px "JetBrains Mono"';
-        tx(c, couper(c, etq, R.w * 0.42), R.x + R.w, y + 16, 10, COULEURS.gris2, 400, 'm', 'right');
+        const etqCoupee = couper(c, R.w < 420 ? `${t.duree} min` : etq, R.w * 0.4), largeurEtq = c.measureText(etqCoupee).width;
+        tx(c, etqCoupee, R.x + R.w, y + 16, 10, COULEURS.gris2, 400, 'm', 'right');
+        c.font = '600 14px Rajdhani';
+        const titre = couper(c, (t.statut === 'fait' ? '✓ ' : t.statut === 'pas fait' ? '✕ ' : '') + t.titre, R.w - 58 - largeurEtq - 12);
+        tx(c, titre, R.x + 58, y + 16, 14, coul.texte, 600);
         zones.push(zoneTache(t, R.x - 4, y + 2, R.w + 8, rh - 3, false, tous));
       });
-      if (lignes.length > max) tx(c, `+ ${lignes.length - max} lignes (agrandis le widget)`, R.x, C.y + 6, 9.5, COULEURS.gris2, 400, 'm');
+      if (deborde) tx(c, `+ ${lignes.length - max} lignes : agrandis le widget ou passe en vue jour`, R.x, R.y + 4 + max * rh + 15, 9.5, COULEURS.gris2, 400, 'm');
       return { zones, geom: null };
     }
 

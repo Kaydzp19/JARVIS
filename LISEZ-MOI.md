@@ -7,7 +7,8 @@ jamais rien écrire seuls : c'est toi qui valides.
 
 > **État : prototype fonctionnel n°1.** Tout tourne sur ton Mac, en Python seul (**rien à
 > installer**), avec une IA **simulée** par défaut : 0 €, aucune clé, aucun réseau nécessaire.
-> 184 tests automatiques, tous réussis.
+> 244 tests automatiques Python et 22 tests JavaScript, tous réussis ; le test complet dans un
+> navigateur vérifie 62 étapes.
 
 ![Le cockpit de JARVIS : la sphère de la mémoire, la conversation et les widgets](docs/maquettes/sphere-1440x880-notes-retenues.png)
 
@@ -80,6 +81,7 @@ polices : l'interface affiche alors la liste de tes notes (titres seulement).
 | Brancher Claude Desktop (MCP) | `python3 jarvis.py config-claude`, coller le réglage affiché, redémarrer Claude |
 | Lancer le serveur MCP à la main | `python3 -m noyau.corps_calleux` |
 | Activer le module de notifications | `python3 jarvis.py modules --activer notifications` |
+| Brancher l'agenda Apple (lecture seule) | `python3 jarvis.py modules --activer agenda --mode REEL` |
 | Lancer tous les tests | `python3 jarvis.py tests` |
 
 Toutes les commandes : `python3 jarvis.py --help`. Pour essayer sur un autre dossier de données :
@@ -95,6 +97,15 @@ synapse par lien pondéré, une région par projet (jamais de synapse entre deux
   **jaune** = une proposition attend ta validation (deux anneaux sur les notes concernées).
 - **Gestes** : glisser pour tourner (avec élan), molette ou pincement pour zoomer, flèches et
   `+` / `-` au clavier ; survoler ou cliquer un neurone affiche son titre, son projet et ses liens.
+- **Au repos, la sphère est une image fixe** : synapses en pointillés immobiles, aucune rotation
+  automatique, rien n'est recalculé ni redessiné (processeur et carte graphique au repos). Elle ne
+  bouge que si tu la touches, quand JARVIS cherche ou répond, la nuit, ou quand un hologramme est
+  ouvert.
+- **Quand JARVIS répond**, la sphère passe en bleu vif : à chaque mot (ou à chaque mot prononcé si
+  la voix est activée), une impulsion part de la zone du projet concerné et traverse la sphère
+  (neurones plus gros et plus lumineux, synapses éclairées, léger gonflement), puis tout revient au
+  calme. L'orange reste réservé à la recherche de notes. Avec « réduire les animations » (réglage
+  du Mac), une simple lueur, sans déformation.
 - **Une question** (colonne de gauche) déclenche la **vague en 4 temps** (environ 10 s) :
   1 notation de tous les neurones (par code, sans IA), 2 propagation le long des synapses,
   3 sélection (les notes gardées, numérotées, face à toi), 4 réponse. La ligne « OUTIL » montre
@@ -109,7 +120,17 @@ synapse par lien pondéré, une région par projet (jamais de synapse entre deux
   une note sensible).
 - **Garde d'écriture** : un bouton marqué « · à valider » n'exécute rien. Il crée une
   proposition qui apparaît dans **À valider** ; seule ta validation écrit dans la mémoire.
-- **Colonne de droite** : Système (CPU, RAM, disque, batterie, sans droits administrateur),
+- **Planification** (carte en haut à droite) : tes 3 prochaines tâches, « Ouvrir » pour la vue
+  en grand, « ＋ Tâche » pour en ajouter une. En grand : **liste**, **jour** ou **semaine** en
+  frise horaire, ◀ ▶ pour changer de période, un projet à la fois (« tous » = lecture seule).
+  Une tâche : titre, date, heure, durée, projet, priorité, récurrence (chaque jour, jours ouvrés,
+  chaque semaine, chaque mois), rappel, note liée. **Glisse** une tâche pour la déplacer ; clique
+  dessus pour la modifier, la marquer **Fait** / **Pas fait** ou la supprimer ; sa note liée
+  s'allume dans la sphère. Ce que tu crées est enregistré tout de suite ; une tâche proposée par
+  JARVIS passe par **À valider**. Chaque changement est noté au journal. Demande aussi
+  « planification » ou « mes tâches de demain ». Les rendez-vous de ton agenda Apple s'affichent
+  en violet, non modifiables (voir « Brancher ton agenda Apple »).
+- **Colonne de droite** : Planification, Système (CPU, RAM, disque, batterie, sans droits administrateur),
   Dépense IA (session, aujourd'hui, ce mois, plafond), À valider, Journal du jour (projets
   sensibles masqués).
 - **Météo** (facultative) : renseigne `METEO_LATITUDE` et `METEO_LONGITUDE` dans
@@ -122,8 +143,41 @@ synapse par lien pondéré, une région par projet (jamais de synapse entre deux
   tes notes (titres) s'affichent à la place de la sphère.
 
 Tests : `python3 jarvis.py tests` lance aussi les tests JavaScript (si Node.js est installé).
-Le test complet dans un navigateur (environ 2 minutes) se lance à part :
+Le test complet dans un navigateur (environ 4 minutes) se lance à part :
 `JARVIS_E2E=1 python3 -m unittest interface.test_e2e_sphere` (Node.js et Playwright requis).
+
+## Brancher ton agenda Apple (lecture seule)
+
+Le module `agenda` lit l'app **Calendrier de ton Mac**, directement sur la machine : aucun
+identifiant, aucun mot de passe. Ses rendez-vous apparaissent en violet dans la Planification,
+sans pouvoir être modifiés.
+
+1. Dans le Terminal, dans le dossier JARVIS :
+
+   ```
+   python3 jarvis.py modules --activer agenda --mode REEL
+   ```
+
+2. Lance le cockpit (`python3 jarvis.py cockpit`) et ouvre la **Planification**.
+3. La première fois, macOS demande si **Terminal** peut accéder à tes calendriers (ou contrôler
+   « Calendrier ») : clique **Autoriser** (ou **OK**).
+4. Si tu as refusé par erreur : **Réglages Système › Confidentialité et sécurité › Calendriers**,
+   active **Terminal** ; puis **Automatisation › Terminal**, coche **Calendrier**. Recharge la page.
+5. Options, dans `~/.jarvis/reglages.local` :
+   - `agenda_masquer_titres=true` : n'affiche que « occupé » au lieu des titres ;
+   - `agenda_calendriers=Travail,Perso` : ne lit que ces calendriers (vide = tous).
+
+Si la lecture échoue (pas de Mac, accès refusé, Calendrier trop lent), un message clair
+s'affiche et la Planification continue sans l'agenda. Pour revenir aux faux rendez-vous :
+`python3 jarvis.py modules --activer agenda --mode DEMO` ; pour le retirer :
+`python3 jarvis.py modules --retirer agenda`.
+
+**Écrire dans l'agenda** (créer ou déplacer un rendez-vous) est préparé mais pas encore branché :
+une telle demande devient une proposition « À valider », et même validée, rien n'est écrit dans
+l'agenda à cette étape.
+
+**Limites** : les rendez-vous répétitifs d'Apple n'apparaissent qu'à leur première date (limite
+de la lecture par AppleScript) ; un très gros agenda peut mettre quelques secondes à répondre.
 
 ## Démo en ligne (Vercel)
 
@@ -178,6 +232,8 @@ Ce fichier est créé tout seul à la première commande, **hors du dépôt**. L
 | `idees_par_projet`, `candidates_par_nuit` | `1`, `5` | idées gardées et imaginées chaque nuit |
 | `cloud_pour_reveil` | `false` | permet le cloud payant pour noter les idées (réveil) |
 | `contrainte_budget_eur`, `contrainte_niveau`, `contrainte_objectifs` | `0`, `débutant`, vide | tes contraintes, pour noter les idées du rêve |
+| `METEO_LATITUDE`, `METEO_LONGITUDE` | vides | ta position, pour l'hologramme météo (facultatif) |
+| `agenda_masquer_titres`, `agenda_calendriers` | `false`, vide | agenda Apple : « occupé » au lieu des titres ; calendriers lus |
 
 `reglages.exemple` (dans le dépôt) montre tous les réglages possibles, sans aucune vraie valeur.
 
@@ -197,6 +253,8 @@ Ce fichier est créé tout seul à la première commande, **hors du dépôt**. L
 | `interface/serveur_web.py`, `interface/conversation.py`, `interface/fournisseurs.py` | Le serveur web local (127.0.0.1 seulement), la conversation (routage par code) et les données des widgets |
 | `interface/sphere/` | Le cockpit (interface « sphère ») : `js/` (sphère, vague, nuit, conversation, tableau, hologrammes), `css/`, catalogue, tests |
 | `noyau/affichage.py` | Le contrat des hologrammes : événements validés, mises à jour, garde d'écriture des widgets |
+| `noyau/planification.py` | Les tâches : date, heure, durée, priorité, récurrence, rappel ; actions de Kayd et propositions de JARVIS |
+| `modules/agenda/` | Le module « agenda » : l'app Calendrier du Mac en lecture seule (modes DÉMO et RÉEL) |
 | `exemples/demo.py` | La démo de bout en bout |
 | `exemples/export_demo.py`, `vercel-demo/`, `vercel.json` | La démo en ligne : export, site statique, réglage Vercel |
 | `jarvis.py` | La « télécommande » : toutes les commandes |
@@ -208,7 +266,9 @@ qui est particulier devient un module dans `modules/`.
 
 ## Maquettes
 
-- Interface sphère : [notes retenues](docs/maquettes/sphere-1440x880-notes-retenues.png) ·
+- Cockpit : [planification](docs/maquettes/cockpit-1440x880-planification.png) ·
+  [planification sur iPhone](docs/maquettes/cockpit-390x844-planification.png) ·
+  [notes retenues](docs/maquettes/sphere-1440x880-notes-retenues.png) ·
   [machine](docs/maquettes/sphere-1440x880-machine.png) ·
   [iPhone](docs/maquettes/sphere-390x844-notes-retenues.png) ·
   [graphique](docs/maquettes/catalogue-1440x880-graphique.png) ·

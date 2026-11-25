@@ -53,4 +53,6 @@ class TestBoutEnBout(TestTemporaire):
         echecs = [f"{e['nom']} ({e['detail']})" for e in bilan["etapes"] if not e["ok"]]
         self.assertEqual(echecs, [])
         self.assertEqual(bilan["erreurs"], [])
-        self.assertGreaterEqual(len(bilan["etapes"]), 40)
+        self.assertGreaterEqual(len(bilan["etapes"]), 60)
+        print(f"\n{len(bilan['etapes'])} étapes réussies dans le navigateur, aucune erreur console.",
+              file=sys.stderr)

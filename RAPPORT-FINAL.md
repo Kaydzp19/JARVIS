@@ -152,3 +152,26 @@ avec la suite de tests au vert.
   viendra avec le routeur réel.
 - Le test navigateur tourne sur WebGL logiciel : la fluidité réelle (60 images/s) se juge
   sur le Mac ; un repli automatique baisse la définition puis masque la poussière si besoin.
+
+## Marche 7 · suite : cockpit unique, sphère au repos, planification, agenda Apple
+
+- **Ancien cockpit supprimé** (page, route `/cockpit`, bouton, API, fichiers, tests, captures,
+  démo en ligne) : la sphère est le cockpit. Une note sensible s'ouvre avec « Ouvrir dans
+  l'éditeur local » (geste de Kayd).
+- **Sphère au repos = image fixe** : synapses en pointillés immobiles, rendu à la demande,
+  rotation automatique supprimée. Mesure au repos (Chromium, 1440 × 880, rendu logiciel) :
+  **59,5 → 0 image/s**, fil principal **77 % → 0,8 %**.
+- **Impulsions de parole** : une seule source d'intensité (0 à 1, `parole.js`), une impulsion
+  par mot écrit, par mot prononcé, ou par pic de volume (Web Audio) ; elles partent de la zone
+  du projet concerné ; bleu vif ; mouvement réduit = simple lueur.
+- **Planification** : table `taches` enrichie (heure, durée, priorité, récurrence, rappel),
+  `noyau/planification.py`, carte permanente (3 prochaines tâches) et hologramme (liste, jour,
+  semaine), fiche de tâche, glisser pour déplacer, journal à chaque changement, JARVIS propose
+  (« À valider »), vue « tous » en lecture seule, mode démo séparé.
+- **Module agenda** (`modules/agenda/`) : lecture locale de l'app Calendrier (choix de Kayd),
+  modes DÉMO / RÉEL, « masquer les titres », échec propre ; écriture préparée en proposition,
+  jamais exécutée à cette étape.
+
+Choix faits seul : la carte Planification est en tête de la colonne de droite ; le
+« ＋ Nouveau projet » et la création de notes de l'ancien cockpit ne sont pas repris (à décider) ;
+les rappels s'affichent dans la conversation quand le cockpit est ouvert.

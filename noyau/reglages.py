@@ -31,6 +31,10 @@ DEFAUTS = {
     # --- Interface : météo (facultatif ; vide = pas de météo, aucun appel réseau) ---
     "METEO_LATITUDE": "",
     "METEO_LONGITUDE": "",
+    # --- Module agenda (agenda Apple du Mac, lecture seule) ---
+    "agenda_masquer_titres": "false",
+    "agenda_calendriers": "",
+    "agenda_ecriture": "false",
     # --- Routeur IA ---
     "mode_ia": "simule",              # simule (sans clé) ou reel
     "modele_gemini": "gemini-2.5-flash",
@@ -90,6 +94,12 @@ contrainte_objectifs=
 # Exemple pour Paris : METEO_LATITUDE=48.85 et METEO_LONGITUDE=2.35
 METEO_LATITUDE=
 METEO_LONGITUDE=
+
+# --- Agenda Apple (module agenda, lecture seule) ---
+# true = n'affiche que « occupé » au lieu des titres de tes rendez-vous.
+agenda_masquer_titres=false
+# Calendriers à lire, séparés par des virgules (vide = tous). Ex. : Travail,Perso
+agenda_calendriers=
 
 # --- Clés API (facultatif ; à remplir toi-même, jamais dans le chat) ---
 # CLE_API_GEMINI=
