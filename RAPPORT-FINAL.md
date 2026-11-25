@@ -100,3 +100,53 @@ aucune erreur, la 3D et les polices se chargent, aucun débordement de page.
 4. **Tes contraintes** pour noter les idées du rêve : `contrainte_budget_eur`, `contrainte_objectifs`.
 5. **Brancher Claude Desktop** au cerveau (`python3 jarvis.py config-claude`).
 6. **Tes deux premiers vrais projets**, et lesquels sont sensibles.
+
+---
+
+# Marche 7 · Partie design : l'interface « sphère »
+
+Branche `marche-7-interface`, tirée de `vercel-demo`. Six commits locaux (1/6 à 6/6), chacun
+avec la suite de tests au vert.
+
+## Ce qui a été construit
+
+1. **Contrat d'affichage** (`noyau/affichage.py`) : JARVIS écrit un événement (scène, titre,
+   données, contrôles, actions), validé par un schéma et journalisé ; mises à jour sur place
+   (même identifiant, version + 1) ; une action d'écriture venue d'un widget devient une
+   proposition « à valider », jamais exécutée ; aucun texte de note accepté.
+2. **Trace de recherche** (`se_souvenir_trace`) : notation par code (pertinence, force des
+   synapses, fraîcheur, importance), propagation depuis 3 graines, chemins ; uniquement des
+   identifiants, titres, scores et liens.
+3. **Serveur** : « / » = sphère, « /cockpit » = ancien cockpit, routes `/api/sphere`,
+   `/api/demander`, `/api/affichage(/action)`, `/api/systeme`, `/api/depenses`,
+   `/api/a_valider`, `/api/journal_du_jour` ; conversation routée par code, sans IA.
+4. **Interface** (`interface/sphere/`) : sphère (un seul objet Points, shaders), vague en
+   4 temps, nuit en 4 phases, conversation, widgets permanents, éditeur local, hologrammes
+   interactifs, mode démo séparé (badge), catalogue, repli sans WebGL.
+5. **Tests** : Python (schéma, événements, mise à jour, garde d'écriture, trace sans texte,
+   routes), JavaScript (Node), parité Python ↔ JavaScript, test de bout en bout dans Chromium.
+
+## Choix faits seul
+
+- Nouvelle interface à « / », ancien cockpit gardé à « /cockpit » (la démo en ligne Vercel,
+  générée depuis l'ancien cockpit, ne change pas).
+- Un seul hologramme à la fois ; position et taille mémorisées par type (sur le navigateur) ;
+  fixe sur iPhone.
+- Les contrôles des hologrammes sont de vrais boutons posés sur le panneau 3D (clavier,
+  toucher, lecteur d'écran).
+- Le focus reste dans la conversation à l'ouverture d'un hologramme (annoncé, joignable avec
+  Tab) et revient où il était à la fermeture.
+- Les notes servies ensemble sont renforcées par `activer` (notes validées seulement, jamais
+  dans la vue « tous les projets »).
+- La nuit animée n'est jouable que sur les projets de démo ; les vraies nuits restent
+  `python3 jarvis.py dormir`.
+- Météo seulement si Kayd règle sa position (Open-Meteo, sans clé).
+
+## Limites connues
+
+- Three.js et les polices viennent d'Internet (CDN) : sans réseau, liste des notes à la place.
+- Température du processeur : toujours « indisponible » (droits administrateur nécessaires).
+- La réponse de JARVIS est composée par code (titres retenus) ; une réponse rédigée par l'IA
+  viendra avec le routeur réel.
+- Le test navigateur tourne sur WebGL logiciel : la fluidité réelle (60 images/s) se juge
+  sur le Mac ; un repli automatique baisse la définition puis masque la poussière si besoin.
